@@ -227,12 +227,14 @@ func _scatter(g: Grid3D, rng: RandomNumberGenerator) -> void:
 		var beach: bool = c.z >= BEACH_Z
 		var shore := _is_shore(g, c)
 		var r := rng.randf()
-		# Palmen: dicht am Strand/Ufer, spaerlich am Dschungelrand im Inland.
+		# Palmen: Strand/Ufer palmengesaeumt (Dichte gedrosselt, damit die Soeldner
+			# am Spawn nicht hinter einer Palmenwand verschwinden — Kriterium b:
+			# lesbar/plausible), spaerlich am Dschungelrand im Inland.
 		var palm_p := 0.03
 		if beach:
-			palm_p = 0.28
+			palm_p = 0.14
 		elif shore:
-			palm_p = 0.16
+			palm_p = 0.10
 		if r < palm_p:
 			var yaw := rng.randf() * TAU
 			var s := palm_scale * rng.randf_range(0.88, 1.12)
