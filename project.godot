@@ -1,0 +1,37 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="Söldnerkommando: Operation Silberfuchs"
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.6")
+config/icon="res://icon.png"
+
+[autoload]
+
+Db="*res://scripts/db.gd"
+Assets="*res://scripts/assets.gd"
+Assets3D="*res://scripts/assets3d.gd"
+Sfx="*res://scripts/sfx.gd"
+Game="*res://scripts/game.gd"
+
+[display]
+
+window/size/viewport_width=1600
+window/size/viewport_height=900
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
