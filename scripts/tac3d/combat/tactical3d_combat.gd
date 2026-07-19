@@ -261,8 +261,8 @@ func _setup_lighting() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.rotation = Vector3(deg_to_rad(-55.0), deg_to_rad(-40.0), 0.0)
-	sun.light_color = Color(1.0, 0.95, 0.82)   # warmes Sonnenlicht
-	sun.light_energy = 1.0
+	sun.light_color = Color(1.0, 0.93, 0.78)   # warmes, gerichtetes Sonnenlicht
+	sun.light_energy = 1.15
 	if not fast:
 		sun.shadow_enabled = true
 		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
@@ -282,13 +282,13 @@ func _setup_lighting() -> void:
 	var e := Environment.new()
 
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color(0.36, 0.56, 0.82)       # kräftiges Vormittagsblau
-	sky_mat.sky_horizon_color = Color(0.78, 0.82, 0.80)   # dunstiger, warmer Horizont
+	sky_mat.sky_top_color = Color(0.22, 0.44, 0.80)       # tieferes Zenit-Blau -> Kontrast
+	sky_mat.sky_horizon_color = Color(0.82, 0.80, 0.70)   # warmer, dunstiger Horizont
 	sky_mat.sky_energy_multiplier = 1.0
-	sky_mat.ground_bottom_color = Color(0.44, 0.42, 0.36) # warmer Sand-/Erdton
-	sky_mat.ground_horizon_color = Color(0.72, 0.72, 0.66)
+	sky_mat.ground_bottom_color = Color(0.42, 0.40, 0.34) # warmer Sand-/Erdton
+	sky_mat.ground_horizon_color = Color(0.74, 0.72, 0.64)
 	sky_mat.sun_angle_max = 30.0
-	sky_mat.sky_curve = 0.09
+	sky_mat.sky_curve = 0.12
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	e.background_mode = Environment.BG_SKY
@@ -299,25 +299,34 @@ func _setup_lighting() -> void:
 	# modelliert (Schattenkontrast) statt sie flach zu fluten und helle Texturen
 	# (Wand/Sand) ins Weiss zu blasen.
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	e.ambient_light_sky_contribution = 0.5
-	e.ambient_light_energy = 0.3
+	e.ambient_light_sky_contribution = 0.6
+	e.ambient_light_energy = 0.35
 
-	# Filmischer Tonemap; Exposure leicht runter (1.0->0.9) gegen ausgebrannte
-	# Weissflaechen an Gebaeudewaenden/Strandsand.
+	# Filmischer Tonemap. ART-PASS v2 T9: Exposure 0.9->0.74. Pixel-Messung zeigte
+	# Strand bei 255/255/211 (R,G ausgebrannt) UND Wiese bei ~233/246 (nah am Clip,
+	# ins Gelbliche gewaschen) -> die ganze Pipeline war zu heiss. Tieferes Exposure
+	# holt den Strand aus dem Clip (echter Sand-Ton) und macht die Wiese satter/gruener.
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	e.tonemap_exposure = 0.9
+	e.tonemap_exposure = 0.74
 	e.tonemap_white = 1.0
 
 	# Farb-Boost fuer satte Tropenfarben (jetzt nicht mehr vom Ambient gewaschen).
 	e.adjustment_enabled = true
-	e.adjustment_contrast = 1.08
-	e.adjustment_saturation = 1.18
-	e.adjustment_brightness = 1.0
+	e.adjustment_contrast = 1.12
+	e.adjustment_saturation = 1.22
+	e.adjustment_brightness = 1.02
 
-	# Dezenter, warmer Luftdunst für Tiefe (gl_compatibility rendert einfachen Fog).
+	# Warmer Luftdunst fuer Tiefe. gl_compatibility rendert einfachen (nicht-
+	# volumetrischen) Tiefen-Fog.
+	# ART-PASS v2 T8: KRITISCH — die Ortho-Kamera sitzt 200 Einheiten hinter dem
+	# Pivot (camera_rig cam.position.z=200), also liegt JEDE Geometrie bei ~200
+	# Tiefe. Bei density 0.008 ergibt das 1-exp(-0.008*200)=~80 % Fog UEBERALL ->
+	# die ganze Szene ertrinkt in einer gelben Milch (kein Tiefen-Cue, nur Wash).
+	# density 0.0009 -> ~1-exp(-0.18)=~16 % dezenter Grunddunst, ferne Kartenteile
+	# minimal staerker -> Atmosphaere statt Milchglas, echte Tropenfarben bleiben.
 	e.fog_enabled = true
-	e.fog_light_color = Color(0.82, 0.80, 0.72)
-	e.fog_density = 0.0012
+	e.fog_light_color = Color(0.82, 0.80, 0.70)
+	e.fog_density = 0.0009
 	e.fog_sky_affect = 0.0
 
 	env.environment = e
@@ -679,6 +688,7 @@ func shoot(att, def, interrupt := false) -> bool:
 	# Phase 5: Schuetze feuert sichtbar. Eigener not-fast-Block (unabhaengig vom Juice-Objekt);
 	# play_anim ist null-/Fallback-sicher (No-Op ohne AnimationPlayer bzw. bei Kapsel).
 	if not fast:
+		att.face_toward(grid.cell_to_world(def.cell))
 		att.play_anim("shoot")
 	var investigate: Vector3i = att.cell if att.is_merc else def.cell
 	alert_enemies(investigate, att.cell, 9.0)

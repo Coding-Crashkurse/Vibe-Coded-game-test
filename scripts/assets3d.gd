@@ -163,7 +163,7 @@ func _lit_mat(col: Color) -> StandardMaterial3D:
 
 # Surface-Name -> Kenney-PNG im Repo. (Kein sand.png im Repo → Farb-Fallback.)
 const TERRAIN_TEX := {
-	"grass": "res://assets/img/grass_1.png",
+	"grass": "res://assets/textures/terrain/grass_ambient.jpg",   # ambientCG CC0, nahtlos (statt winziger Kachel-PNG)
 	"dirt": "res://assets/img/dirt_1.png",
 	"wood": "res://assets/img/floor_wood_1.png",
 	"rock": "res://assets/img/rock_1.png",
@@ -184,7 +184,7 @@ const TERRAIN_KIND := {
 const TERRAIN_COLOR := {
 	"grass": Color(0.33, 0.52, 0.24),
 	"dirt": Color(0.46, 0.34, 0.20),
-	"sand": Color(0.85, 0.77, 0.55),
+	"sand": Color(0.50, 0.45, 0.35),   # Art-Pass v2: stark gedaempft — 0.85/0.63 brannten den R-Kanal unter warmer Sonne zu 255 aus (Strand flach-weiss); jetzt echter Sand-Ton
 	"wood": Color(0.55, 0.40, 0.23),
 	"rock": Color(0.48, 0.48, 0.50),
 	"wall_brick": Color(0.55, 0.32, 0.26),
@@ -220,7 +220,9 @@ func _make_terrain_material(name: String) -> Material:
 		var m := StandardMaterial3D.new()
 		m.albedo_texture = load(path)
 		m.albedo_color = Color(0.72, 0.72, 0.72)   # Art-Pass: helle Textur daempfen (kein Ausbrennen/Mint)
-		m.uv1_scale = Vector3.ONE          # 1x1-Kachel-Box → 1 Textur je Kachel
+		m.uv1_triplanar = true          # World-Space-Triplanar: KEIN UV-Reset pro Kachel -> kein Grid-Look
+		m.uv1_world_triplanar = true
+		m.uv1_scale = Vector3(0.16, 0.16, 0.16)          # 1x1-Kachel-Box → 1 Textur je Kachel
 		m.roughness = 0.95                 # matt/diffus → Sonne shadet weich
 		m.metallic = 0.0
 		m.texture_repeat = true

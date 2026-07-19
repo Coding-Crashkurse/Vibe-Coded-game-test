@@ -24,6 +24,10 @@ const PALM_KEEPOUT := 2       # Palmen-Sperrradius um Gebaeude-Zellen (Zellen)
 const PALM_P_BEACH := 0.10    # Palmen-Chance am Strand (vor Mindestabstand)
 const PALM_P_SHORE := 0.07    # Palmen-Chance am Ufer
 const PALM_P_INLAND := 0.025  # Palmen-Chance im Inland (sehr spaerlich)
+const GRASS_P := 0.55         # Gras-Bueschel-Chance je Inland-Bodenzelle
+const GRASS_P2 := 0.32        # zweites Bueschel je Zelle (Dichte, kleine Cluster)
+const PEBBLE_P := 0.09        # Kleinstein-Chance je Inland-Bodenzelle
+const PEBBLE_P_BEACH := 0.22  # mehr Kiesel am Strand
 
 var _mat_cache := {}
 
@@ -42,6 +46,7 @@ func build(g: Grid3D) -> void:
 	_build_estate_mesa(g)   # (c) Fels-Mesa unter Anwesen-Ebene (Luecke y0->3)
 	_build_sand_band(g)     # (d1) Strand-Sand ueber dem Suedband
 	_scatter(g, rng)        # (d2) Palmen + Lowpoly-Streuung
+	_scatter_ground_detail(g, rng)  # (d3) feine Gras-/Kiesel-Streuung (Detail)
 	_cover_props(g)         # (e) Kisten/Faesser auf cover>0 (nicht im Demo-Dopp.)
 	_build_dock(g)          # (f) Steg an der Sued-Landezone
 
@@ -252,8 +257,9 @@ func _scatter(g: Grid3D, rng: RandomNumberGenerator) -> void:
 		if r < palm_p and not _near_building(building, c) and _palm_far_enough(palm_cells, c):
 			palm_cells.append(c)
 			var yaw := rng.randf() * TAU   # natuerliche Zufalls-Y-Rotation je Palme
-			var s := palm_scale * rng.randf_range(0.72, 1.04)   # moderater, leicht variiert
-			var jitter := Vector3(rng.randf_range(-0.2, 0.2), 0.0, rng.randf_range(-0.2, 0.2))
+			# Etwas kleiner + deutlich mehr Groessen-Variation -> Einzelbaeume statt Klon-Reihe.
+			var s := palm_scale * rng.randf_range(0.55, 0.98)
+			var jitter := Vector3(rng.randf_range(-0.3, 0.3), 0.0, rng.randf_range(-0.3, 0.3))
 			palm_x.append(Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3(s, s, s)), base + jitter))
 			continue
 		# Kein Palmen-Feld -> evtl. Busch/Fels (nur Inland, nicht am nackten Strand).
@@ -296,7 +302,7 @@ func _scatter(g: Grid3D, rng: RandomNumberGenerator) -> void:
 		bush.radial_segments = 6
 		bush.rings = 3
 		bush.material = _flat(Color(0.20, 0.44, 0.18))
-		_add_mm(g, "Bushes", bush, bush_x)
+		_add_mm(g, "Bushes", bush, bush_x, true)   # groessere Deko wirft Schatten
 
 	if not rock_x.is_empty():
 		var rk := SphereMesh.new()
@@ -407,15 +413,20 @@ func _components(cellset: Dictionary) -> Array:
 
 
 ## Baut eine MultiMeshInstance3D (Reihenfolge-Falle beachtet) + custom_aabb.
-func _add_mm(g: Grid3D, node_name: String, mesh: Mesh, xforms: Array, cast_shadow := false) -> void:
+func _add_mm(g: Grid3D, node_name: String, mesh: Mesh, xforms: Array, cast_shadow := false,
+		colors := []) -> void:
 	if mesh == null or xforms.is_empty():
 		return
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
+	var use_colors := not colors.is_empty()
+	mm.use_colors = use_colors   # VOR instance_count setzen (Buffer-Layout)
 	mm.mesh = mesh
 	mm.instance_count = xforms.size()   # ZULETZT
 	for i in xforms.size():
 		mm.set_instance_transform(i, xforms[i])
+		if use_colors:
+			mm.set_instance_color(i, colors[i])
 	var mmi := MultiMeshInstance3D.new()
 	mmi.name = node_name
 	mmi.multimesh = mm
@@ -506,4 +517,112 @@ func _flat(col: Color) -> StandardMaterial3D:
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED   # nie schwarz ohne Licht
 	m.roughness = 1.0
 	_mat_cache[key] = m
+	return m
+
+
+# ------------------------------------------------- (d3) BODEN-DETAIL-STREUUNG
+## Dichte, sehr kleine Gras-Bueschel + Kiesel ueber alle Boden-Zellen — bricht die
+## Leere der Grasflaeche auf. Alles MultiMesh mit Per-Instanz-Farbe (use_colors),
+## deterministisch (fester rng), rein optisch, Primitiv-Fallback-frei (kein Asset).
+func _scatter_ground_detail(g: Grid3D, rng: RandomNumberGenerator) -> void:
+	var cells := []
+	for k in g.all_cells():
+		var c: Vector3i = k
+		if c.y != 0:
+			continue
+		var t: Tac3DTile = g.get_tile(c)
+		if t == null or t.kind != Tac3DTile.Kind.GROUND:
+			continue
+		cells.append(c)
+	if cells.is_empty():
+		return
+	cells.sort_custom(func(a, b): return (a.z * 100000 + a.x) < (b.z * 100000 + b.x))
+
+	var grass_x := []
+	var grass_c := []
+	var peb_x := []
+	var peb_c := []
+	for c in cells:
+		var w := g.cell_to_world(c)
+		var base := Vector3(w.x, w.y + TOP_Y, w.z)
+		var beach: bool = c.z >= BEACH_Z
+		# Gras nur im Inland (nicht auf Sand); leichte Cluster durch 2. Chance.
+		if not beach:
+			if rng.randf() < GRASS_P:
+				_add_tuft(grass_x, grass_c, base, rng)
+			if rng.randf() < GRASS_P2:
+				_add_tuft(grass_x, grass_c, base, rng)
+		# Kiesel ueberall, am Strand haeufiger + sandiger getoent.
+		var pp: float = PEBBLE_P_BEACH if beach else PEBBLE_P
+		if rng.randf() < pp:
+			_add_pebble(peb_x, peb_c, base, rng, beach)
+
+	if not grass_x.is_empty():
+		_add_mm(g, "GrassTufts", _grass_tuft_mesh(), grass_x, false, grass_c)
+	if not peb_x.is_empty():
+		var pm := SphereMesh.new()
+		pm.radius = 0.12
+		pm.height = 0.16
+		pm.radial_segments = 5
+		pm.rings = 2
+		pm.material = _vcol_mat()
+		_add_mm(g, "Pebbles", pm, peb_x, false, peb_c)
+
+
+func _add_tuft(xf: Array, cols: Array, base: Vector3, rng: RandomNumberGenerator) -> void:
+	var jitter := Vector3(rng.randf_range(-0.42, 0.42), 0.0, rng.randf_range(-0.42, 0.42))
+	var yaw := rng.randf() * TAU
+	# ART-PASS v2: kleiner (0.65..1.3 -> 0.55..1.0) + flacher (hy max 1.25 -> 1.05),
+	# damit die Bueschel als Boden-Gras lesen, nicht als grosse leuchtende Shards.
+	var s := rng.randf_range(0.55, 1.0)                 # kleine bis mittlere Bueschel
+	var hy := rng.randf_range(0.8, 1.05)               # Hoehen-Variation
+	var b := Basis(Vector3.UP, yaw).scaled(Vector3(s, s * hy, s))
+	xf.append(Transform3D(b, base + jitter))
+	# Farb-Variation um ein Grasgruen; heller Anteil etwas entsaettigt/gedaempft
+	# (0.48,0.62,0.26 -> 0.40,0.53,0.24), sonst zieht der Saettigungs-Boost ins Neon-Lime.
+	var col := Color(0.24, 0.42, 0.15).lerp(Color(0.40, 0.53, 0.24), rng.randf())
+	cols.append(col)
+
+
+func _add_pebble(xf: Array, cols: Array, base: Vector3, rng: RandomNumberGenerator, beach: bool) -> void:
+	var jitter := Vector3(rng.randf_range(-0.42, 0.42), 0.0, rng.randf_range(-0.42, 0.42))
+	var s := rng.randf_range(0.55, 1.5)
+	var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * 0.6, s))
+	xf.append(Transform3D(b, base + jitter + Vector3(0.0, 0.03, 0.0)))
+	var hi := Color(0.72, 0.66, 0.50) if beach else Color(0.58, 0.55, 0.52)
+	cols.append(Color(0.40, 0.40, 0.43).lerp(hi, rng.randf()))
+
+
+## Kleines Gras-Bueschel: 3 gekreuzte Dreieck-Halme (double-sided, unshaded).
+## Vertex-Farbe = weiss -> die Per-Instanz-Farbe des MultiMesh bestimmt den Ton.
+func _grass_tuft_mesh() -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var blades := 3
+	var hw := 0.13
+	var h := 0.36
+	for i in blades:
+		var ang := float(i) / float(blades) * PI
+		var dx := cos(ang) * hw
+		var dz := sin(ang) * hw
+		st.set_color(Color.WHITE)
+		st.set_normal(Vector3.UP)
+		st.add_vertex(Vector3(-dx, 0.0, -dz))
+		st.add_vertex(Vector3(dx, 0.0, dz))
+		st.add_vertex(Vector3(dx * 0.08, h, dz * 0.08))   # leicht geneigte Spitze
+	st.set_material(_vcol_mat())   # Surface-Material -> MultiMesh nutzt es
+	return st.commit()
+
+
+## Material mit Per-Vertex/Instanz-Farbe als Albedo (fuer farbvariable MultiMeshes).
+func _vcol_mat() -> StandardMaterial3D:
+	if _mat_cache.has("vcol"):
+		return _mat_cache["vcol"]
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color.WHITE
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.vertex_color_use_as_albedo = true
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED   # Halme von beiden Seiten sichtbar
+	m.roughness = 1.0
+	_mat_cache["vcol"] = m
 	return m

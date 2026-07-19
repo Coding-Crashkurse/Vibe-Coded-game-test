@@ -29,6 +29,7 @@ const WATER_NODE_NAME := "WaterOverlay"
 const WATER_Y := 0.15   # Box-Oberkante liegt bei +0.1; klar ueber der Wellen-Amplitude (amp 0.05)
 
 var _fallback_mat_cache := {}   # int(kind) -> StandardMaterial3D
+var _tinted_mat_cache := {}     # int(kind) -> Material (Duplikat mit vertex_color_use_as_albedo)
 
 
 func build(g: Grid3D) -> void:
@@ -89,25 +90,38 @@ func build(g: Grid3D) -> void:
 
 
 ## Eine MultiMeshInstance3D "MM_<kind>" fuer alle Zellen eines Kinds.
-## REIHENFOLGE-FALLE: transform_format + mesh ZUERST, instance_count ZULETZT.
+## REIHENFOLGE-FALLE: transform_format + use_colors ZUERST, instance_count ZULETZT.
 ## Material via material_override (das Box-Mesh ist geteilt) — je Kind eigene
 ## Kenney-PNG-Textur bzw. flacher Farb-Fallback. Schatten AUS (T6).
+##
+## ART-PASS: pro Kachel eine deterministisch variierte INSTANZ-Farbe
+## (use_colors=true; set_instance_color) → moduliert die albedo_texture, damit
+## die gleichfoermige Textur aufbricht (fleckige Wiese statt flaches Gruen).
+## Wasser (separates Overlay) und BRIDGE bleiben UNVERAENDERT (weisse/keine Farbe).
 func _make_kind_mm(g: Grid3D, box: Mesh, kind: int, cells: Array) -> void:
 	if cells.is_empty():
 		return
 
+	# BRIDGE ist ausgenommen (bleibt exakt wie bisher). Alle anderen Boden-Kinder
+	# bekommen Instanz-Farb-Jitter.
+	var tint := kind != int(Tac3DTile.Kind.BRIDGE)
+
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
+	if tint:
+		mm.use_colors = true                   # VOR instance_count setzen
 	mm.mesh = box
 	mm.instance_count = cells.size()           # ZULETZT
 	for i in cells.size():
 		var c: Vector3i = cells[i]
 		mm.set_instance_transform(i, Transform3D(Basis.IDENTITY, g.cell_to_world(c)))
+		if tint:
+			mm.set_instance_color(i, _tile_tint(c, kind))
 
 	var mmi := MultiMeshInstance3D.new()
 	mmi.name = "MM_" + str(kind)
 	mmi.multimesh = mm
-	mmi.material_override = _terrain_material(kind)
+	mmi.material_override = _terrain_material_tinted(kind, tint)
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF   # T6
 	# custom_aabb Pflicht (MultiMesh wird nicht auto-gecullt).
 	var b := g.bounds_world()
@@ -125,6 +139,59 @@ func _terrain_material(kind: int) -> Material:
 		if m != null:
 			return m
 	return _fallback_kind_material(kind)
+
+
+## Wie _terrain_material, aber wenn per-Kachel-Instanzfarben genutzt werden
+## (tint=true), wird eine DUPLIKAT-Kopie zurueckgegeben mit
+## vertex_color_use_as_albedo=true — nur so moduliert die Instanz-Farbe die
+## albedo_texture. Das Original (Assets3D-Cache, auch von Scenery3D genutzt)
+## bleibt UNVERAENDERT. Ohne tint identisch zu _terrain_material.
+func _terrain_material_tinted(kind: int, tint: bool) -> Material:
+	var base := _terrain_material(kind)
+	if not tint or base == null:
+		return base
+	if _tinted_mat_cache.has(kind):
+		return _tinted_mat_cache[kind]
+	var m: Material = base
+	if base is BaseMaterial3D:
+		var dup: BaseMaterial3D = base.duplicate()
+		dup.vertex_color_use_as_albedo = true
+		m = dup
+	_tinted_mat_cache[kind] = m
+	return m
+
+
+## Deterministischer Instanz-Farb-Jitter je Zelle (moduliert die Textur um
+## Weiss herum). GROUND bekommt zusaetzlich leichten Farbton-Jitter Richtung
+## Gelb/Dunkel und einen kleinen Anteil deutlicher Erd-/Dunkelgruen-Flecken.
+func _tile_tint(c: Vector3i, kind: int) -> Color:
+	# Helligkeit ±8 % (alle getinteten Kinder).
+	var bright := 1.0 + (_cell_rng(c, 1) - 0.5) * 0.16
+	var col := Color(bright, bright, bright, 1.0)
+
+	if kind == int(Tac3DTile.Kind.GROUND):
+		# Farbton-Jitter: Gruen → etwas gelber/dunkler (mehr R, weniger B).
+		var h := (_cell_rng(c, 2) - 0.5) * 0.10
+		col.r = clampf(col.r + h, 0.0, 2.0)
+		col.g = clampf(col.g + h * 0.4, 0.0, 2.0)
+		col.b = clampf(col.b - h * 0.6, 0.0, 2.0)
+		# Kleiner Anteil (~12 %) deutlicher Erd-/Dunkelgruen-Fleck (Patches).
+		if _cell_rng(c, 3) < 0.12:
+			var d := 0.60 + _cell_rng(c, 4) * 0.18   # 0.60..0.78 abdunkeln
+			col.r *= d * 1.10                         # erdig: R haelt sich
+			col.g *= d * 0.92
+			col.b *= d * 0.72
+
+	return col
+
+
+## Deterministischer 0..1-Wert aus Zellkoordinate + Salt (Integer-Hash-Mix,
+## kein Random-Seed/Date → in Headless UND Spiel identisch, Smoke-stabil).
+func _cell_rng(c: Vector3i, salt: int) -> float:
+	var n := int(c.x) * 73856093 ^ int(c.z) * 19349663 ^ int(c.y) * 83492791 ^ (salt * 2654435761)
+	n = (n ^ (n >> 13)) * 1274126177
+	n = n & 0x7fffffff
+	return float(n % 1000003) / 1000003.0
 
 
 ## Lokaler Fallback (unshaded flache Farbe), falls Assets3D-Autoload fehlt.

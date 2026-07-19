@@ -22,6 +22,15 @@ const WEAPON_SCALE := 0.0035
 const WEAPON_OFFSET := Vector3(0.0, 0.0, 0.0)
 const WEAPON_EULER_DEG := Vector3(0.0, 0.0, 0.0)
 
+# --- Blickrichtung (Facing) ---------------------------------------------------
+# Weiche Drehgeschwindigkeit des Mesh Richtung Ziel-Yaw (rad/s-artiges lerp_angle-Gewicht).
+const TURN_SPEED := 10.0
+# Das Quaternius-CharacterArmature schaut in seiner Bind-Pose in +Z ("vorne" = +Z),
+# unser atan2-Yaw liefert aber die Richtung als -Z-vorne-Konvention. 180° dreht die
+# Figur so, dass sie das Ziel ANSIEHT statt ihm den Ruecken zuzudrehen. Der visuelle
+# Verify korrigiert diesen Startwert bei Bedarf (0 / 90 / 180 / 270).
+const FACING_OFFSET_DEG := 180.0
+
 # GDScript-Namen -> Quaternius-Clip-Namen (CharacterArmature-Rig, 24 Anims, kein Retarget).
 # S1 VERIFIZIERT (Phase 5): Godot behaelt beim glTF-Import die "CharacterArmature|<Name>"-
 # Praefixe UNVERAENDERT bei (keine AnimationLibrary-Umbenennung, kein Strippen). Die echte
@@ -55,6 +64,9 @@ var fast := false            # true = sofort snappen (Headless), kein Tween
 
 var _mesh: Node3D                     # GLB-Wurzel ODER Fallback-Kapsel
 var _anim: AnimationPlayer = null     # rekursiv gefunden; null bei Fallback
+
+var _target_yaw := 0.0                 # Ziel-Blickrichtung (Mesh-Yaw), von face_toward gesetzt
+var _has_target_yaw := false           # erst nach erstem face_toward/Spawn drehen
 
 
 func setup(g: Grid3D, start: Vector3i, char_id := "merc") -> void:
@@ -91,6 +103,12 @@ func setup(g: Grid3D, start: Vector3i, char_id := "merc") -> void:
 	# Charakter-Meshes sollen im Sonnenlicht Schatten werfen (rekursiv, Fallback-sicher).
 	_enable_shadows(_mesh)
 	set_cell(start)
+	# Startdrehung: Figur schaut zur Kartenmitte (statt alle identisch in +Z zu stehen).
+	# Fallback auf negatives Z, falls die Grid-Groesse noch nicht bekannt ist.
+	var center := Vector3(position.x, position.y, position.z - 1.0)
+	if grid != null and grid.size_x > 0 and grid.size_z > 0:
+		center = grid.cell_to_world(Vector3i(grid.size_x / 2, start.y, grid.size_z / 2))
+	face_toward(center, true)   # sofort setzen (Spawn), nicht weich eindrehen
 	play_anim("idle")
 
 
@@ -146,18 +164,14 @@ func follow_path(world_points: Array) -> void:
 	play_anim("walk")   # durchgehend Laufen bis Pfadende (kein Flackern zwischen Segmenten)
 	var tween := create_tween()
 	# Konstantes Tempo, weiche Sine-Kurve, Figur schaut in Laufrichtung (nur Y-Achse).
-	var prev: Vector3 = position
 	for p in world_points:
 		var pt: Vector3 = p
 		var goal := pt + Vector3(0, MODEL_Y_OFFSET, 0)
-		# Blickrichtung vor dem Segment setzen (horizontale Differenz -> Yaw).
-		var flat := Vector2(goal.x - prev.x, goal.z - prev.z)
-		if flat.length() > 0.001:
-			var yaw := atan2(flat.x, flat.y)
-			tween.tween_callback(_face_yaw.bind(yaw))
+		# Blickrichtung vor jedem Segment weich zum naechsten Punkt drehen.
+		# face_toward setzt nur das Ziel-Yaw; _process dreht das Mesh weich dorthin.
+		tween.tween_callback(face_toward.bind(goal))
 		tween.tween_property(self, "position", goal, 0.22) \
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		prev = goal
 	tween.finished.connect(func() -> void:
 		moving = false
 		play_anim("idle")
@@ -165,10 +179,34 @@ func follow_path(world_points: Array) -> void:
 	)
 
 
-## Dreht nur das Mesh um die Y-Achse in Laufrichtung (Kampf-Logik/Node-Transform unberuehrt).
-func _face_yaw(yaw: float) -> void:
-	if _mesh != null:
-		_mesh.rotation.y = yaw
+## ÖFFENTLICH: Dreht das Mesh so, dass die Figur die Weltposition ANSIEHT.
+##
+## Signatur:  face_toward(world_pos: Vector3, instant := false) -> void
+##   world_pos — anzublickender Punkt in Weltkoordinaten (nur X/Z zaehlen).
+##   instant   — true: sofort snappen (Spawn/fast); false: weich per _process eindrehen.
+##
+## Der Orchestrator ruft z.B. in shoot() face_toward(ziel.global_position) auf, damit der
+## Schuetze zum Ziel schaut. Kampf-Logik/Node-Transform bleiben unberuehrt (nur _mesh dreht).
+func face_toward(world_pos: Vector3, instant := false) -> void:
+	var dx := world_pos.x - global_position.x
+	var dz := world_pos.z - global_position.z
+	# Ziel praktisch senkrecht ueber/unter uns -> keine sinnvolle Richtung, alte behalten.
+	if Vector2(dx, dz).length() < 0.001:
+		return
+	# atan2(dx, dz) = Yaw mit +Z als 0-Richtung; FACING_OFFSET_DEG korrigiert die Modell-Front.
+	_target_yaw = atan2(dx, dz) + deg_to_rad(FACING_OFFSET_DEG)
+	_has_target_yaw = true
+	# Im Headless/fast-Modus (oder bewusst instant) hart setzen: kein weiches _process noetig.
+	if instant or fast:
+		if _mesh != null:
+			_mesh.rotation.y = _target_yaw
+
+
+## Weiche Drehung des Mesh Richtung _target_yaw. Im fast/Headless-Modus billiger No-Op.
+func _process(delta: float) -> void:
+	if fast or _mesh == null or not _has_target_yaw:
+		return
+	_mesh.rotation.y = lerp_angle(_mesh.rotation.y, _target_yaw, minf(1.0, TURN_SPEED * delta))
 
 
 # ------------------------------------------------------------------ intern
