@@ -226,7 +226,7 @@ func refresh() -> void:
 	if orch.combat_started:
 		_top_label.text = "SEKTOR 43 · SILBERQUELL — Runde %d — %s" % [orch.turn, "Ihr Zug" if orch.player_turn else "Feindphase"]
 	else:
-		_top_label.text = "SEKTOR 43 · SILBERQUELL — ANMARSCH — frei bewegen bis Feindkontakt"
+		_top_label.text = "SEKTOR 43 · SILBERQUELL — ANMARSCH — frei bewegen · Shift+Klick: ganze Gruppe · Strg+Klick: zielen"
 	var seen := 0
 	var total := 0
 	for e in orch.enemies:

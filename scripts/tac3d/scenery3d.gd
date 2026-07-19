@@ -28,6 +28,8 @@ const GRASS_P := 0.55         # Gras-Bueschel-Chance je Inland-Bodenzelle
 const GRASS_P2 := 0.32        # zweites Bueschel je Zelle (Dichte, kleine Cluster)
 const PEBBLE_P := 0.09        # Kleinstein-Chance je Inland-Bodenzelle
 const PEBBLE_P_BEACH := 0.22  # mehr Kiesel am Strand
+const EDGE_INSET := 3         # #5: keine Deko (Palmen/Buesche/Fels) so nah am Kartenrand,
+                              #     dass Baeume "abgeschnitten" ueber den Rand ragen.
 
 var _mat_cache := {}
 
@@ -41,6 +43,7 @@ func build(g: Grid3D) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = SEED
 
+	_build_ocean(g)         # (0) grosse Wasser-Ebene rund um die Insel (fuellt das "blaue Nichts")
 	_build_walls(g)         # (a) WALL-Zellen -> Wandsegmente (echte Hoehe), T3
 	_build_roofs(g)         # (b) Dach je Gebaeude (Connected-Component)
 	_build_estate_mesa(g)   # (c) Fels-Mesa unter Anwesen-Ebene (Luecke y0->3)
@@ -49,6 +52,33 @@ func build(g: Grid3D) -> void:
 	_scatter_ground_detail(g, rng)  # (d3) feine Gras-/Kiesel-Streuung (Detail)
 	_cover_props(g)         # (e) Kisten/Faesser auf cover>0 (nicht im Demo-Dopp.)
 	_build_dock(g)          # (f) Steg an der Sued-Landezone
+
+
+# ---------------------------------------------------------- (0) OZEAN-EBENE
+# #4b: Ohne Wasser scheint der Himmel am Kartenrand als flaches, haessliches Blau
+# durch ("das blau links oben"). Eine grosse, leicht unter der Grasoberkante liegende
+# Wasser-Ebene fuellt den Rand -> die Insel liegt im Meer statt im Nichts.
+func _build_ocean(g: Grid3D) -> void:
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(600.0, 600.0)   # weit ueber die 72er-Karte hinaus (Rand fuellt Sichtfeld)
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.09, 0.32, 0.48)
+	m.metallic = 0.0
+	m.roughness = 0.28                   # etwas Glanz -> liest sich als Wasser, nicht als blaue Platte
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
+	# Emission-Sockel, falls das Licht-Setup mal fehlt -> Wasser nie pechschwarz (Renderer-Falle).
+	m.emission_enabled = true
+	m.emission = Color(0.05, 0.16, 0.24)
+	m.emission_energy_multiplier = 0.35
+	plane.material = m
+	var mi := MeshInstance3D.new()
+	mi.name = "Ocean"
+	mi.mesh = plane
+	# Auf die Kartenmitte zentrieren, knapp UNTER die Grasoberkante (Ufer taucht ins Wasser).
+	var ctr := g.cell_to_world(Vector3i(g.size_x / 2, 0, g.size_z / 2))
+	mi.position = Vector3(ctr.x, TOP_Y - 0.10, ctr.z)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
 
 
 # ---------------------------------------------------------------- (a) WAENDE
@@ -241,6 +271,11 @@ func _scatter(g: Grid3D, rng: RandomNumberGenerator) -> void:
 	var rock_x := []
 
 	for c in ground:
+		# #5: Rand-Inset — Deko nicht direkt an die Kartenkante, sonst wirken Baeume
+		# "abgeschnitten", wo sie ueber den Boden-Rand ins Nichts/Wasser ragen.
+		if c.x < EDGE_INSET or c.x >= g.size_x - EDGE_INSET \
+		   or c.z < EDGE_INSET or c.z >= g.size_z - EDGE_INSET:
+			continue
 		var w := g.cell_to_world(c)
 		var base := Vector3(w.x, w.y + TOP_Y, w.z)
 		var beach: bool = c.z >= BEACH_Z

@@ -858,6 +858,31 @@ func _hud3d_shots(outdir: String) -> void:
 	current.rig.pan(Vector2(40.0, 0.0))
 	await _wait(0.3)
 	await _snap(outdir + "/hud3d_05_panned.png")
+	# #1 FACING+BEINE: Soeldner WIRKLICH bewegen (do_move, nicht walk-in-place). do_move ruft
+	# jetzt face_toward (Drehung in Laufrichtung) UND play_anim("walk") (Beine laufen) auf.
+	# do_move ohne await starten (Coroutine) -> _wait/_snap greifen mitten in der Bewegung.
+	# Zur Kamera (Welt +X+Z) -> Gesicht; von der Kamera weg (-X-Z) -> Ruecken.
+	var mv = current.mercs[0]
+	current.ui_select(mv)
+	current.rig.set_zoom(6.0)
+	var toward: Array = current.path_for(mv, mv.cell + Vector3i(4, 0, 4))
+	if toward.size() < 2:
+		toward = current.path_for(mv, mv.cell + Vector3i(3, 0, 3))
+	var away: Array = current.path_for(mv, mv.cell + Vector3i(-4, 0, -4))
+	if toward.size() > 1:
+		current.rig.focus_world(current.grid.cell_to_world(toward[toward.size() / 2]))
+		await _wait(0.15)
+		current.do_move(mv, toward)
+		await _wait(0.55)
+		await _snap(outdir + "/hud3d_06_move_toward.png")
+		await _wait(1.2)
+	if away.size() > 1:
+		current.rig.focus_world(current.grid.cell_to_world(away[away.size() / 2]))
+		await _wait(0.15)
+		current.do_move(mv, away)
+		await _wait(0.55)
+		await _snap(outdir + "/hud3d_07_move_away.png")
+		await _wait(1.2)
 	get_tree().quit()
 
 # ============================================================ Demo-Inhalt (Phase 7)

@@ -33,24 +33,29 @@ func setup_combat(g: Grid3D, d: Dictionary, merc: bool, start: Vector3i) -> void
 	# Rolle -> Modell: Boss=BusinessMan, Söldner=SWAT, sonst Gegner=Casual.
 	var cid := "boss" if String(d.get("type", "")) == "boss" else ("merc" if merc else "enemy")
 	super.setup(g, start, cid)
-	# K1: eigener Team-Marker als Kind-Node (kein Zugriff auf Unit3D._mesh/-material).
+	# #3: Team-Identitaet ueber einen flachen FARBRING am BODEN (statt Blob ueber dem
+	# Kopf). Liest sich wie XCOM/JA3 und stoert die Silhouette nicht. Weiter EIGENER
+	# Kind-Node -> Unit3D._mesh/-material bleiben unberuehrt (K1).
 	_marker = MeshInstance3D.new()
-	var sphere := SphereMesh.new()
-	sphere.radius = 0.18
-	sphere.height = 0.36
-	_marker.mesh = sphere
+	var ring := TorusMesh.new()
+	ring.inner_radius = 0.40
+	ring.outer_radius = 0.52
+	ring.rings = 4
+	ring.ring_segments = 20   # TorusMesh liegt flach in XZ (Achse = Y) -> Ring auf dem Boden
+	_marker.mesh = ring
 	_marker_mat = StandardMaterial3D.new()
 	_marker_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	sphere.material = _marker_mat
-	_marker.position = Vector3(0, 1.7, 0)
+	_marker_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ring.material = _marker_mat
+	_marker.position = Vector3(0, 0.07, 0)   # knapp ueber der Kachel-Oberkante
 	add_child(_marker)
 	set_tint(team_color())
 
 
 func set_tint(col: Color) -> void:
-	# Faerbt AUSSCHLIESSLICH das eigene Marker-Material (K1).
+	# Faerbt AUSSCHLIESSLICH das eigene Marker-Material (K1). Leicht transparenter Boden-Ring.
 	if _marker_mat != null:
-		_marker_mat.albedo_color = col
+		_marker_mat.albedo_color = Color(col.r, col.g, col.b, 0.85)
 
 
 func team_color() -> Color:

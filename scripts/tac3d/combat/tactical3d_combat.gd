@@ -1,5 +1,5 @@
-extends Node3D
-## Orchestrator-Screen der 3D-Taktik-SCHLACHT (Strang A). KEIN class_name (Vertrag §1.6/§10).
+﻿extends Node3D
+## Orchestrator-Screen der 3D-Taktik-SCHLACHT (Strang A). KEIN class_name (Vertrag Â§1.6/Â§10).
 ## Portiert die reine Kampf-Logik aus scripts/screens/tactical.gd (AP, Sicht/LOS, Deckung,
 ## Zielen, Schuss/Treffer, Unterbrechungen, KI/Leine, Laerm, Granaten, Loot, Boss, Sieg)
 ## 1:1 auf Grid3D/Pathfinder3D/Tac3DUnit. Alle Reichweiten laufen FLACH auf (x,z); die
@@ -8,7 +8,7 @@ extends Node3D
 ## Aufbau-Reihenfolge (Scaffold-Muster von tactical3d.gd): Container-Nodes ZUERST, dann
 ## Karte/Pathfinder/View/Vision/AI/Rig/Picker/Units, battle_ready DEFERRED.
 ##
-## GDScript-Fallen (verbindlich, p2_1 §7): typisierte Variant-Iteration, Integer-Division
+## GDScript-Fallen (verbindlich, p2_1 Â§7): typisierte Variant-Iteration, Integer-Division
 ## bewahren (int(agi)/5 etc.), call_deferred fuer Signale, MOVE_AP.get(move_type, 2),
 ## duplicate(true) bei Enemy-Defs, path_for ent-/sperrt u.cell, await-Ketten vollstaendig.
 
@@ -62,7 +62,7 @@ const MOVE_AP := {
 	Tac3DTile.Move.SWIM: 6,
 	Tac3DTile.Move.CLIMB: 3,
 }
-const HEIGHT_HIT_BONUS := 8.0    # Trefferbonus je Ebene Hoehenvorteil (spec §6.2)
+const HEIGHT_HIT_BONUS := 8.0    # Trefferbonus je Ebene Hoehenvorteil (spec Â§6.2)
 const PAN_SPEED := 24.0
 var _cam_dragging := false   # Mittelmaus gedrueckt = Karte greifen und scrollen
 var _drag_last := Vector2.ZERO
@@ -162,11 +162,11 @@ func _ready() -> void:
 		_world_root.add_child(juice)
 		juice.setup(grid, rig)
 
-	# 12c) Phase 7 — Erkundungs-Musik (gebacken, fallback-sicher). Nur not fast (Bot rein).
+	# 12c) Phase 7 â€” Erkundungs-Musik (gebacken, fallback-sicher). Nur not fast (Bot rein).
 	if not fast:
 		Sfx.play_music("exploration")
 
-	# 13) battle_ready DEFERRED (Fix §10.9): Harness await'et nach add_child.
+	# 13) battle_ready DEFERRED (Fix Â§10.9): Harness await'et nach add_child.
 	battle_ready.emit.call_deferred()
 
 
@@ -202,7 +202,7 @@ func _spawn_units() -> void:
 	_spawn_otto()
 
 
-## Phase 7 — Otto als Gefangener (captive). is_merc=true -> Swat-Modell (ohne tac3d_unit/
+## Phase 7 â€” Otto als Gefangener (captive). is_merc=true -> Swat-Modell (ohne tac3d_unit/
 ## assets3d anzufassen), aber NICHT in mercs/units/enemies: keine KI, kein Ziel, keine
 ## Sieg-/Niederlage-Zaehlung. Belegt seine Zelle (Pathfinder-Block), grau bis befreit.
 func _spawn_otto() -> void:
@@ -219,7 +219,7 @@ func _spawn_otto() -> void:
 	# NICHT in mercs/units/enemies! (keine KI, kein Ziel, keine Sieg-/Niederlage-Zaehlung)
 
 
-# 1:1 aus tactical.gd:148-160 — frisches Enemy-Runtime-Dict. duplicate(true), damit die
+# 1:1 aus tactical.gd:148-160 â€” frisches Enemy-Runtime-Dict. duplicate(true), damit die
 # geteilte const-Dictionary NICHT mutiert wird (marks += marks_mod).
 func _spawn_enemy_dict(type: String) -> Dictionary:
 	var def: Dictionary = Db.ENEMY_TYPES[type].duplicate(true)
@@ -266,7 +266,7 @@ func _setup_lighting() -> void:
 	if not fast:
 		sun.shadow_enabled = true
 		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-		# 72x72-Feld -> Schattenreichweite hoch, Acne über Bias/Normal-Bias zähmen.
+		# 72x72-Feld -> Schattenreichweite hoch, Acne Ã¼ber Bias/Normal-Bias zÃ¤hmen.
 		sun.directional_shadow_max_distance = 220.0
 		sun.directional_shadow_split_1 = 0.08
 		sun.directional_shadow_split_2 = 0.20
@@ -318,7 +318,7 @@ func _setup_lighting() -> void:
 
 	# Warmer Luftdunst fuer Tiefe. gl_compatibility rendert einfachen (nicht-
 	# volumetrischen) Tiefen-Fog.
-	# ART-PASS v2 T8: KRITISCH — die Ortho-Kamera sitzt 200 Einheiten hinter dem
+	# ART-PASS v2 T8: KRITISCH â€” die Ortho-Kamera sitzt 200 Einheiten hinter dem
 	# Pivot (camera_rig cam.position.z=200), also liegt JEDE Geometrie bei ~200
 	# Tiefe. Bei density 0.008 ergibt das 1-exp(-0.008*200)=~80 % Fog UEBERALL ->
 	# die ganze Szene ertrinkt in einer gelben Milch (kein Tiefen-Cue, nur Wash).
@@ -383,14 +383,14 @@ func shot_ap(u, aim := 0) -> int:
 	return int(Db.weapon(u.data["weapon"])["ap"]) + int(Db.AIM["ap_step"]) * aim
 
 
-## Erfahrungsstufe (1–6): Soeldner steigen ueber Abschuesse auf, Gegner sind fix.
+## Erfahrungsstufe (1â€“6): Soeldner steigen ueber Abschuesse auf, Gegner sind fix.
 func level_of(u) -> int:
 	if u.is_merc:
 		return mini(6, int(u.data.get("exp", 1)) + int(u.data.get("kills", 0)) / 2)
 	return int(u.data.get("exp", 1))
 
 
-# Port tactical.gd:477-490 + Hoehenbonus (spec §6.2). Distanz FLACH auf (x,z).
+# Port tactical.gd:477-490 + Hoehenbonus (spec Â§6.2). Distanz FLACH auf (x,z).
 func hit_chance(att, def, aim := 0) -> int:
 	var w: Dictionary = Db.weapon(att.data["weapon"])
 	var d: float = att.flat().distance_to(def.flat())
@@ -442,7 +442,7 @@ func path_ap(cells: Array) -> int:
 	return c
 
 
-# Port tactical.gd:453-464 — Kosten je Schritt via step_ap.
+# Port tactical.gd:453-464 â€” Kosten je Schritt via step_ap.
 func prefix_for_ap(cells: Array, ap: int) -> Array:
 	var out: Array = []
 	if cells.is_empty():
@@ -458,7 +458,7 @@ func prefix_for_ap(cells: Array, ap: int) -> Array:
 	return out
 
 
-# Port tactical.gd:416-422 — entsperrt u.cell (Guard pathfinder3d.gd:64), Pfad, wieder sperren.
+# Port tactical.gd:416-422 â€” entsperrt u.cell (Guard pathfinder3d.gd:64), Pfad, wieder sperren.
 func path_for(u, target: Vector3i) -> Array:
 	if not grid.is_walkable(target) or occupied.has(target):
 		return []
@@ -468,7 +468,7 @@ func path_for(u, target: Vector3i) -> Array:
 	return p
 
 
-# Port tactical.gd:424-442 — Nachbarfallback (4er-/8er-Umkreis, flach).
+# Port tactical.gd:424-442 â€” Nachbarfallback (4er-/8er-Umkreis, flach).
 func path_toward(u, target: Vector3i) -> Array:
 	if grid.is_walkable(target) and not occupied.has(target):
 		var direct := path_for(u, target)
@@ -551,8 +551,8 @@ func start_combat() -> void:
 		uu.ap = uu.ap_max
 		uu.interrupt_used = false
 	if hud != null:
-		hud.banner("FEINDKONTAKT — Rundenkampf!")
-	# Phase 7 — Kampf-Sting + Kampfmusik (nur not fast, fallback-sicher).
+		hud.banner("FEINDKONTAKT â€” Rundenkampf!")
+	# Phase 7 â€” Kampf-Sting + Kampfmusik (nur not fast, fallback-sicher).
 	if not fast:
 		Sfx.play("interrupt", -2.0)
 		Sfx.play_music("combat")
@@ -566,7 +566,7 @@ func _end_combat_mode() -> void:
 	for m in mercs:
 		var merc: Tac3DUnit = m
 		merc.ap = merc.ap_max
-	# Phase 7 — zurueck zur Erkundungs-Musik.
+	# Phase 7 â€” zurueck zur Erkundungs-Musik.
 	if not fast:
 		Sfx.play_music("exploration")
 	_hud_refresh()
@@ -592,11 +592,15 @@ func _leash_for(u) -> float:
 
 # ================================================================= Aktionen (Coroutinen)
 
-# Port tactical.gd:513-590 — AP, Leine, Unterbrechungen, Kontakt, Ebenen-Bewegung.
+# Port tactical.gd:513-590 â€” AP, Leine, Unterbrechungen, Kontakt, Ebenen-Bewegung.
 func do_move(u, cells: Array) -> void:
 	if cells.size() < 2 or battle_over:
 		return
 	busy = true
+	# Beine laufen waehrend der Bewegung. do_move hat eine EIGENE Schritt-Schleife und nutzt
+	# follow_path (das sonst "walk" spielt) NICHT -> hier explizit, sonst gleitet die Idle-Pose.
+	if not fast:
+		u.play_anim("walk")
 	var observers: Dictionary = {}
 	var watchers: Array = enemies if u.is_merc else mercs
 	for o in watchers:
@@ -620,8 +624,10 @@ func do_move(u, cells: Array) -> void:
 		if fast:
 			u.set_cell(to)
 		else:
-			var tw := create_tween()
 			var wp := grid.cell_to_world(to) + Vector3(0.0, Unit3D.MODEL_Y_OFFSET, 0.0)
+			# #1: Figur dreht sich in Laufrichtung (weich via Unit3D._process).
+			u.face_toward(wp)
+			var tw := create_tween()
 			tw.tween_property(u, "position", wp, 0.11)
 			await tw.finished
 		compute_vision()
@@ -660,6 +666,8 @@ func do_move(u, cells: Array) -> void:
 		if u.is_merc:
 			if await check_boss_dialog():
 				break
+	if not fast and u.alive:
+		u.play_anim("idle")   # Bewegung zu Ende -> zurueck in die Ruhepose (nicht bei Tod/Hit)
 	if u.is_merc and not combat_started:
 		u.ap = u.ap_max   # Anmarsch: Bewegung kostet nichts
 	busy = false
@@ -667,7 +675,7 @@ func do_move(u, cells: Array) -> void:
 	_hud_refresh()
 
 
-# Port tactical.gd:592-652 — Schaden/Schrot/Armor/Hoehe. Distanz FLACH.
+# Port tactical.gd:592-652 â€” Schaden/Schrot/Armor/Hoehe. Distanz FLACH.
 func shoot(att, def, interrupt := false) -> bool:
 	if battle_over or not att.alive or not def.alive:
 		return false
@@ -745,6 +753,44 @@ func shoot(att, def, interrupt := false) -> bool:
 	return true
 
 
+## #3 (neu): Freier Schuss in eine ZELLE ohne Ziel-Einheit (Boden / Suppression). Verbraucht
+## Schuss-AP + Munition, macht KEINEN Schaden. Juice (Muendungsfeuer/Leuchtspur) wie shoot().
+func shoot_ground(att, cell: Vector3i) -> void:
+	if battle_over or not att.alive:
+		return
+	var w: Dictionary = Db.weapon(att.data["weapon"])
+	var cost := shot_ap(att, 0)
+	if att.ap < cost:
+		return
+	if int(att.data["ammo"]) <= 0:
+		if att.ap >= cost + int(w["reload"]) and _can_reload(att):
+			do_reload(att)
+		else:
+			return
+	att.ap -= cost
+	att.data["ammo"] = int(att.data["ammo"]) - 1
+	if att.is_merc:
+		Game.stats["shots"] = int(Game.stats["shots"]) + 1
+	var to_cell: Vector3 = grid.cell_to_world(cell)
+	if not fast:
+		att.face_toward(to_cell)
+		att.play_anim("shoot")
+	alert_enemies(cell, att.cell, 9.0)   # Laerm zieht Gegner an (wie ein echter Schuss)
+	if not fast and juice != null:
+		var from_w: Vector3 = att.global_position + Vector3.UP * 1.3
+		var to_w: Vector3 = to_cell + Vector3.UP * 0.2
+		var flat_dir: Vector3 = to_cell - att.global_position
+		flat_dir.y = 0.0
+		flat_dir = flat_dir.normalized() if flat_dir.length() > 0.001 else Vector3.FORWARD
+		var muzzle: Vector3 = from_w + flat_dir * 0.45
+		juice.muzzle_flash(muzzle, flat_dir)
+		juice.tracer(muzzle, to_w)
+		rig.add_trauma(Juice3D.TRAUMA_SHOT)
+		Sfx.play(String(w["snd"]), 2.0 if bool(w["shotgun"]) else 1.0)
+	await dl(0.13)
+	_refund_if_exploring(att)   # in der Anmarschphase kostenfrei (wie Bewegung)
+
+
 func _can_reload(u) -> bool:
 	if not u.is_merc:
 		return true
@@ -765,7 +811,7 @@ func do_reload(u) -> void:
 	_hud_refresh()
 
 
-# Port tactical.gd:676-703 — heilt schlimmsten Nachbarn (flach). heal = 15 + med/4.
+# Port tactical.gd:676-703 â€” heilt schlimmsten Nachbarn (flach). heal = 15 + med/4.
 func do_medkit(u) -> void:
 	if inv_count(u, "medkit") <= 0 or u.ap < Db.MEDKIT_AP:
 		return
@@ -791,7 +837,7 @@ func do_medkit(u) -> void:
 	_hud_refresh()
 
 
-# Port tactical.gd:705-723 — Handwaffe tauschen (SWAP_AP), Munition zwischenspeichern.
+# Port tactical.gd:705-723 â€” Handwaffe tauschen (SWAP_AP), Munition zwischenspeichern.
 func do_swap(u, slot: int) -> void:
 	var inv: Array = inv_of(u)
 	if slot < 0 or slot >= inv.size() or u.ap < Db.SWAP_AP:
@@ -809,7 +855,7 @@ func do_swap(u, slot: int) -> void:
 	_hud_refresh()
 
 
-# Port tactical.gd:725-795 — Radius flach; W1: FLAG_DESTRUCT wirkt NUR auf begehbare
+# Port tactical.gd:725-795 â€” Radius flach; W1: FLAG_DESTRUCT wirkt NUR auf begehbare
 # Deckungs-Kacheln (cover>0) -> cover=0 (keine Wand-Zerstoerung, Pathfinder3D-sicher).
 func do_grenade(u, c: Vector3i) -> void:
 	if battle_over or inv_count(u, "granate") <= 0 or u.ap < int(Db.GRENADE["ap"]) or not grenade_valid(u, c):
@@ -868,7 +914,7 @@ func do_grenade(u, c: Vector3i) -> void:
 	_hud_refresh()
 
 
-## Erkundungsmodus: Aktionen kosten nichts — AP sofort auffuellen.
+## Erkundungsmodus: Aktionen kosten nichts â€” AP sofort auffuellen.
 func _refund_if_exploring(u) -> void:
 	if not combat_started and u.is_merc:
 		u.ap = u.ap_max
@@ -888,7 +934,7 @@ func search_target_at(c: Vector3i) -> String:
 	return ""
 
 
-# Port tactical.gd:815-852 — Kiste/Leiche, SEARCH_AP, Db.roll_loot.
+# Port tactical.gd:815-852 â€” Kiste/Leiche, SEARCH_AP, Db.roll_loot.
 func do_search(u, c: Vector3i) -> void:
 	var kind := search_target_at(c)
 	if kind == "" or u.flat().distance_to(Tac3DVision.flat(c)) > 1.6 or u.ap < Db.SEARCH_AP:
@@ -919,7 +965,7 @@ func do_search(u, c: Vector3i) -> void:
 	_hud_refresh()
 
 
-# Port tactical.gd:854-895 — XP/Stufenaufstieg, Boss, Sieg/Niederlage.
+# Port tactical.gd:854-895 â€” XP/Stufenaufstieg, Boss, Sieg/Niederlage.
 func on_death(killer, dead) -> void:
 	dead.die_visual()
 	# --- Phase 4 (Juice): Tod-Reaktion (Anim + Trauma + Schmerzlaut). Gegated. ---
@@ -972,7 +1018,7 @@ func on_death(killer, dead) -> void:
 			await end_battle("victory")
 
 
-# Port tactical.gd:897-913 — Boss faellt, restliche Miliz ergibt sich, Sieg.
+# Port tactical.gd:897-913 â€” Boss faellt, restliche Miliz ergibt sich, Sieg.
 func _boss_defeated() -> void:
 	await dl(1.0)
 	var rest := 0
@@ -1008,7 +1054,7 @@ func end_battle(result: String) -> void:
 
 # ================================================================= Boss-Dialog (nur LOGIK)
 
-# Port tactical.gd:929-940 — Sichtung -> alert -> Game.boss_dialog_seen. UI = spaeterer
+# Port tactical.gd:929-940 â€” Sichtung -> alert -> Game.boss_dialog_seen. UI = spaeterer
 # Strang; im fast/Headless terminiert v2 mit `if fast: return true`. Hier immer LOGIK+return.
 func check_boss_dialog() -> bool:
 	if Game.boss_dialog_seen or battle_over or boss == null or not boss.alive:
@@ -1018,7 +1064,7 @@ func check_boss_dialog() -> bool:
 	Game.boss_dialog_seen = true
 	boss.data["alerted"] = true
 	alert_enemies(_nearest_merc_cell(boss.cell), boss.cell, 9.0)
-	# Phase 7 — modaler Vargo-Dialog (nur not fast + hud). boss_dialog_seen steht davor
+	# Phase 7 â€” modaler Vargo-Dialog (nur not fast + hud). boss_dialog_seen steht davor
 	# -> genau einmal, auch bei mehreren await check_boss_dialog()-Aufrufstellen.
 	if not fast and hud != null:
 		await hud.show_boss_dialog()
@@ -1041,7 +1087,7 @@ func _nearest_merc_cell(from: Vector3i) -> Vector3i:
 
 # ================================================================= Feindphase / Runde
 
-# Port tactical.gd:1061-1101 — Feindphase (ai.act je Gegner), Rundenwechsel, Erkundungs-Reset.
+# Port tactical.gd:1061-1101 â€” Feindphase (ai.act je Gegner), Rundenwechsel, Erkundungs-Reset.
 func end_turn() -> void:
 	if busy or not player_turn or battle_over:
 		return
@@ -1083,7 +1129,7 @@ func end_turn() -> void:
 
 # ================================================================= Smoke-Bot
 
-# Port tactical.gd:1947-2010 — Bot spielt bis Sieg/Abbruch. Coroutine.
+# Port tactical.gd:1947-2010 â€” Bot spielt bis Sieg/Abbruch. Coroutine.
 func auto_battle() -> String:
 	var outer := 0
 	while not battle_over and outer < 300:
@@ -1093,7 +1139,7 @@ func auto_battle() -> String:
 			for e in enemies:
 				if e.alive:
 					left += 1
-			print("SMOKE3D: Runde %d — Gegner uebrig: %d" % [turn, left])
+			print("SMOKE3D: Runde %d â€” Gegner uebrig: %d" % [turn, left])
 		for m in mercs:
 			if battle_over:
 				break
@@ -1233,7 +1279,7 @@ func ui_select(u) -> void:
 		return
 	selected = u
 	mode = "move"
-	# Phase 7 — Auswahl-Spruch (Otto=walross via _voice_id; sonst <id>_select). Nur not fast.
+	# Phase 7 â€” Auswahl-Spruch (Otto=walross via _voice_id; sonst <id>_select). Nur not fast.
 	if not fast:
 		Sfx.play_voice(_voice_id(u) + "_select")
 	if picker != null:
@@ -1324,7 +1370,7 @@ func free_otto() -> void:
 	if not fast:
 		Sfx.play_voice(_voice_id(otto) + "_select")   # walross_select
 	if hud != null:
-		hud.banner("OTTO »BÄR« BRANDT BEFREIT — Der Unterschlupf ist unser.", 2.0)
+		hud.banner("OTTO Â»BÃ„RÂ« BRANDT BEFREIT â€” Der Unterschlupf ist unser.", 2.0)
 	compute_vision()
 	_hud_refresh()
 	if not fast and hud != null:
@@ -1426,14 +1472,31 @@ func _handle_click() -> void:
 		_hud_refresh()
 		return
 	var tgt: Tac3DUnit = occupied.get(target, null)
-	# Phase 7 — Captive-Klick VOR dem Merc-Zweig (Otto ist is_merc=true, wuerde sonst
+	# Phase 7 â€” Captive-Klick VOR dem Merc-Zweig (Otto ist is_merc=true, wuerde sonst
 	# faelschlich per ui_select ausgewaehlt). K1: nur bei Etagengleichheit + flach-adjazent.
 	if captive != null and tgt == captive:
 		if selected.alive and selected.cell.y == captive.cell.y \
 		   and selected.flat().distance_to(captive.flat()) <= 1.6:
 			await free_otto()
 		elif hud != null:
-			hud.banner("Näher an Otto heran (in den Keller absteigen).")
+			hud.banner("NÃ¤her an Otto heran (in den Keller absteigen).")
+		return
+	# #3 (neu): Strg gehalten = FREIES ZIELEN. Auf JEDE Einheit (auch eigene -> Friendly Fire
+	# ist ausdruecklich erlaubt) ODER in den Boden schiessen. Muss VOR Merc-Auswahl/Move stehen.
+	if Input.is_key_pressed(KEY_CTRL) and selected.alive and (captive == null or selected != captive):
+		if tgt != null and tgt.alive and tgt != selected and tgt != captive:
+			if vision.los(selected.cell, tgt.cell):
+				busy = true
+				await shoot(selected, tgt)   # shoot prueft KEIN Team -> Friendly Fire moeglich
+				busy = false
+				_hud_refresh()
+			elif hud != null:
+				hud.banner("Keine Sichtlinie zum Ziel.")
+			return
+		busy = true
+		await shoot_ground(selected, target)   # Boden-/Suppressionsschuss (kein Schaden)
+		busy = false
+		_hud_refresh()
 		return
 	if tgt != null and not tgt.is_merc and tgt.alive and tgt.seen:
 		if vision.los(selected.cell, tgt.cell):
@@ -1451,9 +1514,57 @@ func _handle_click() -> void:
 		return
 	var cells := path_for(selected, target)
 	if cells.size() > 1:
-		var pref: Array = cells if not combat_started else prefix_for_ap(cells, selected.ap)
-		await do_move(selected, pref)
+		# #2: In der Anmarsch-/Ruhephase zieht auf Wunsch die GANZE Gruppe zum Ziel
+		# (Umschalt/Shift gehalten). Im Rundenkampf bleibt es einzeln (AP-gebunden).
+		if not combat_started and Input.is_key_pressed(KEY_SHIFT):
+			await _squad_move(target)
+		else:
+			var pref: Array = cells if not combat_started else prefix_for_ap(cells, selected.ap)
+			await do_move(selected, pref)
 		_hud_refresh()
+
+
+## #2: Anmarsch-/Ruhephase — die ganze Gruppe zieht zum Ziel. Jeder Soeldner sucht sich
+## eine freie Zelle nahe dem Klickpunkt und laeuft nacheinander dorthin. Bricht ab, sobald
+## Feindkontakt den Rundenkampf startet (dann uebernimmt die AP-gebundene Einzelsteuerung).
+func _squad_move(target: Vector3i) -> void:
+	var living: Array = []
+	for m in mercs:
+		var mu: Tac3DUnit = m
+		if mu.alive:
+			living.append(mu)
+	# Naechste am Ziel zuerst -> natuerlichere Formation, weniger Umsortieren.
+	living.sort_custom(func(a, b):
+		return Tac3DVision.flat(a.cell).distance_to(Tac3DVision.flat(target)) \
+			< Tac3DVision.flat(b.cell).distance_to(Tac3DVision.flat(target)))
+	var claimed: Dictionary = {}
+	for m in living:
+		if combat_started:
+			break   # Feindkontakt -> Gruppenzug beenden, Rundenkampf laeuft
+		var mu: Tac3DUnit = m
+		var dest := _free_near(target, claimed, mu)
+		claimed[dest] = true
+		var cells := path_for(mu, dest)
+		if cells.size() > 1:
+			selected = mu   # HUD/Kamera folgen dem gerade ziehenden Soeldner (ohne Spruch)
+			await do_move(mu, cells)
+
+
+## Freie, begehbare Zelle nahe `target` (nicht belegt, nicht schon `claimed`). Ringsuche.
+func _free_near(target: Vector3i, claimed: Dictionary, u) -> Vector3i:
+	if not occupied.has(target) and not claimed.has(target) and path_for(u, target).size() > 1:
+		return target
+	for radius in range(1, 6):
+		for dz in range(-radius, radius + 1):
+			for dx in range(-radius, radius + 1):
+				if abs(dx) != radius and abs(dz) != radius:
+					continue   # nur den aeusseren Ring dieses Radius pruefen
+				var c := Vector3i(target.x + dx, target.y, target.z + dz)
+				if occupied.has(c) or claimed.has(c):
+					continue
+				if path_for(u, c).size() > 1:
+					return c
+	return target
 
 
 func _cycle_merc() -> void:
@@ -1489,24 +1600,24 @@ func _update_hover() -> void:
 		var ok := grenade_valid(selected, hover_cell)
 		cursor.show_grenade(selected.cell, hover_cell, float(Db.GRENADE["radius"]), ok)
 		if ok:
-			hud.set_cursor("Granate werfen: %d AP · Radius %.1f" % [int(Db.GRENADE["ap"]), float(Db.GRENADE["radius"])], mpos)
+			hud.set_cursor("Granate werfen: %d AP Â· Radius %.1f" % [int(Db.GRENADE["ap"]), float(Db.GRENADE["radius"])], mpos)
 		else:
-			hud.set_cursor("Außer Reichweite", mpos)
+			hud.set_cursor("AuÃŸer Reichweite", mpos)
 		return
-	# Phase 7 — Otto-Hover (K1: Befreien nur bei Etagengleichheit + flach-adjazent).
+	# Phase 7 â€” Otto-Hover (K1: Befreien nur bei Etagengleichheit + flach-adjazent).
 	if captive != null and hover_cell == captive.cell:
 		cursor.show_target(hover_cell, "search")
 		if selected.cell.y == captive.cell.y and selected.flat().distance_to(captive.flat()) <= 1.6:
 			hud.set_cursor("Otto befreien [F]", mpos)
 		else:
-			hud.set_cursor("Otto — in den Keller absteigen", mpos)
+			hud.set_cursor("Otto â€” in den Keller absteigen", mpos)
 		return
 	var tgt: Tac3DUnit = occupied.get(hover_cell, null)
 	if tgt != null and not tgt.is_merc and tgt.alive and tgt.seen:
 		var los := vision.los(selected.cell, tgt.cell)
 		cursor.show_target(hover_cell, "shoot" if los else "block")
 		if los:
-			hud.set_cursor("%s — Treffer: %d %% · %d AP" % [String(tgt.data["name"]), hit_chance(selected, tgt, aim_level), shot_ap(selected, aim_level)], mpos)
+			hud.set_cursor("%s â€” Treffer: %d %% Â· %d AP" % [String(tgt.data["name"]), hit_chance(selected, tgt, aim_level), shot_ap(selected, aim_level)], mpos)
 		else:
 			hud.set_cursor("Keine Schusslinie", mpos)
 		return
@@ -1529,7 +1640,7 @@ func _update_hover() -> void:
 			if cost <= selected.ap:
 				hud.set_cursor("Laufen: %d AP" % cost, mpos)
 			else:
-				hud.set_cursor("%d AP (nur %d möglich)" % [cost, maxi(0, afford - 1)], mpos)
+				hud.set_cursor("%d AP (nur %d mÃ¶glich)" % [cost, maxi(0, afford - 1)], mpos)
 	else:
 		cursor.clear()
 		hud.hide_cursor()
