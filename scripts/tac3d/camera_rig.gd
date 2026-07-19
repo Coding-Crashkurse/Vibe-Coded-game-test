@@ -20,6 +20,13 @@ const TRAUMA_DECAY := 1.6          # Trauma/s Abklingrate
 const SHAKE_POS := 0.45            # max. Bild-Offset (Welteinheiten bei ortho)
 const SHAKE_ROT_DEG := 2.5         # max. Roll
 
+# --- Politur: Kill-Zoom-Punch (kurzer Ortho-Zoom-Kick bei einem Kill) ---
+var _punch_tween: Tween
+const PUNCH_IN := 0.88             # Faktor auf zoom_size (12 % rein)
+const PUNCH_IN_T := 0.09
+const PUNCH_HOLD_T := 0.10
+const PUNCH_OUT_T := 0.34
+
 func setup(field_bounds: AABB) -> void:
 	field = field_bounds
 
@@ -61,13 +68,38 @@ func rotate_step(dir: int) -> void:
 func zoom_by(factor: float) -> void:
 	if cam == null:
 		return
-	cam.size = clampf(cam.size * factor, ZOOM_MIN, ZOOM_MAX)
+	# Basis ist zoom_size (nicht cam.size): waehrend eines Kill-Punches ist
+	# cam.size temporaer kleiner — User-Zoom bricht den Punch ab und gewinnt.
+	_cancel_zoom_punch()
+	cam.size = clampf(zoom_size * factor, ZOOM_MIN, ZOOM_MAX)
 	zoom_size = cam.size
 
 func set_zoom(size: float) -> void:
+	_cancel_zoom_punch()
 	zoom_size = clampf(size, ZOOM_MIN, ZOOM_MAX)
 	if cam != null:
 		cam.size = zoom_size
+
+## Politur: kurzer Zoom-Kick zum Kill — 12 % rein, halten, weich zurueck auf den
+## User-Zoom. Laeuft auf Spielzeit: startet waehrend des Kill-Hitstops quasi
+## eingefroren und entfaltet sich direkt danach (gewollte Sequenz Hitstop->Punch).
+## Reentrancy wie hitstop(): ein zweiter Kill waehrend des Punches wird ignoriert.
+func kill_zoom_punch() -> void:
+	if cam == null:
+		return
+	if _punch_tween != null and _punch_tween.is_valid():
+		return
+	_punch_tween = create_tween()
+	_punch_tween.tween_property(cam, "size", zoom_size * PUNCH_IN, PUNCH_IN_T)\
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_punch_tween.tween_interval(PUNCH_HOLD_T)
+	_punch_tween.tween_property(cam, "size", zoom_size, PUNCH_OUT_T)\
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+func _cancel_zoom_punch() -> void:
+	if _punch_tween != null and _punch_tween.is_valid():
+		_punch_tween.kill()
+	_punch_tween = null
 
 func pan(delta_xz: Vector2) -> void:
 	# Pan in der Yaw-rotierten Basis: Bildschirm-Delta in Welt-XZ drehen.

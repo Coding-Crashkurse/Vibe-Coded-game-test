@@ -58,10 +58,6 @@ func _ready() -> void:
 	b1.custom_minimum_size = Vector2(340, 52)
 	v.add_child(b1)
 
-	var b2 := UiTheme.btn("3D-GEFECHT (BETA)", _start_3d_beta, 22)
-	b2.custom_minimum_size = Vector2(340, 52)
-	v.add_child(b2)
-
 	var b3 := UiTheme.btn("BEENDEN", func() -> void: get_tree().quit(), 22)
 	b3.custom_minimum_size = Vector2(340, 52)
 	v.add_child(b3)
@@ -87,10 +83,3 @@ func _ready() -> void:
 func _on_new_game() -> void:
 	Game.new_game()
 	_main().goto("difficulty")
-
-func _start_3d_beta() -> void:
-	Game.new_game()
-	Game.set_difficulty("leicht")
-	for id in ["ivan", "fuchs", "doc", "nadel"]:
-		Game.hire(id)
-	_main().goto("tactical3d_combat")

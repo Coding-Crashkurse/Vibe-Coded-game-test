@@ -64,4 +64,6 @@ func _run() -> void:
 		await tw.finished
 		await get_tree().create_timer(0.12).timeout
 	await get_tree().create_timer(0.25).timeout
-	_main().goto("tactical")
+	# 3D ist jetzt das Hauptspiel (2D-Kampf entfernt): der Anheuern/Sektor-Flow
+	# muendet ins 3D-Gefecht.
+	_main().goto("tactical3d_combat")

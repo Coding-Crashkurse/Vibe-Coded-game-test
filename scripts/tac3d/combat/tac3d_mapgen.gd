@@ -118,6 +118,8 @@ static func generate(seed: int, difficulty: String) -> Dictionary:
 	if not g.is_walkable(BOSS_HOME):
 		g.set_tile(BOSS_HOME, Tac3DTile.make(Tac3DTile.Kind.FLOOR, 1))
 
+	_mark_keepouts(g)
+
 	return {
 		"grid": g,
 		"pathfinder_ready": false,
@@ -238,6 +240,30 @@ static func _keller(g: Grid3D) -> void:
 			g.set_tile(Vector3i(x, -1, z), Tac3DTile.make(Tac3DTile.Kind.FLOOR, -1))
 	# Treppe: Eingang (0) <-> Kellerzelle direkt darunter (-1).
 	g.add_link(KELLER_ENTRANCE, Vector3i(32, -1, 32))
+
+
+## FLAG_KEEPOUT auf Zellen, die NIE von blockierender Deko (Palmen, Scenery3D)
+## belegt werden duerfen: Merc-/Gegner-Spawns, Brueckenausgaenge (einzige Fluss-
+## Querung!) und der Rampenfuss zum Anwesen. Gegner-Spawns ALLER Grade werden
+## markiert, damit das Palmen-Layout schwierigkeitsunabhaengig identisch bleibt.
+static func _mark_keepouts(g: Grid3D) -> void:
+	for sp in MERC_SPAWNS:
+		var mc: Vector3i = sp
+		_keepout(g, mc)
+	for es in ENEMY_SPAWNS:
+		var ec: Vector3i = es["cell"]
+		_keepout(g, ec)
+	for x in range(BRIDGE_X0, BRIDGE_X1 + 1):
+		_keepout(g, Vector3i(x, 0, RIVER_Z0 - 1))   # Nordufer-Ausgang
+		_keepout(g, Vector3i(x, 0, RIVER_Z1 + 1))   # Suedufer-Ausgang
+	for x in [57, 58]:
+		_keepout(g, Vector3i(x, 0, 16))             # Rampenfuss (Ebene-0-Wiese)
+
+
+static func _keepout(g: Grid3D, c: Vector3i) -> void:
+	var t: Tac3DTile = g.get_tile(c)
+	if t != null:
+		t.flags = t.flags | Tac3DTile.FLAG_KEEPOUT
 
 
 ## diff-Filter exakt wie MapGen.generate: all/normal/hard + LEICHT-Downgrade elite→miliz.

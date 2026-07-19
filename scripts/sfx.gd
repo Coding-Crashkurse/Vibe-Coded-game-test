@@ -100,6 +100,7 @@ func _build_streams() -> void:
 		"death_m": "death_male", "death_f": "death_female", "throw": "throw_grenade",
 		"search": "search_crate", "step_grass": "step_grass", "step_wood": "step_wood",
 		"step_stone": "step_stone", "pain_enemy": "pain_enemy",
+		"shell": "shell_clink",   # v3-Politur: Huelse landet (Datei optional, Synth-Fallback)
 	}
 	for k in filemap:
 		var path := "res://assets/sfx/fx/%s.mp3" % filemap[k]
@@ -149,6 +150,7 @@ func _build_synth_fallbacks() -> void:
 	_fb("search", _wav(_gen_throw(rng)))
 	for s in ["step_grass", "step_wood", "step_stone"]:
 		_fb(s, _wav(_gen_step(rng)))
+	_fb("shell", _wav(_gen_shell(rng)))
 	streams["medkit"] = _wav(_gen_medkit())
 	streams["interrupt"] = _wav(_gen_interrupt())
 	streams["victory"] = _wav(_gen_jingle([523.25, 659.25, 783.99, 1046.5], 0.17, false))
@@ -185,6 +187,22 @@ func _gen_step(rng: RandomNumberGenerator) -> PackedFloat32Array:
 	for i in f.size():
 		var t := float(i) / SR
 		f[i] = rng.randf_range(-1, 1) * exp(-t * 120.0) * 0.25
+	return f
+
+func _gen_shell(rng: RandomNumberGenerator) -> PackedFloat32Array:
+	# Huelsen-"Klink": heller Metall-Ping mit schnellem, leiserem Zweit-Huepfer.
+	var f := _frames(0.22)
+	for start in [0.0, 0.09]:
+		var s0 := int(start * SR)
+		var amp := 1.0 if start == 0.0 else 0.45
+		for i in range(s0, min(f.size(), s0 + int(0.08 * SR))):
+			var t := float(i - s0) / SR
+			var v := sin(TAU * 3400.0 * t) * exp(-t * 90.0) * 0.22
+			v += sin(TAU * 5200.0 * t) * exp(-t * 120.0) * 0.12
+			v += rng.randf_range(-1, 1) * exp(-t * 500.0) * 0.15
+			f[i] += v * amp
+	for i in f.size():
+		f[i] = clampf(f[i], -1, 1)
 	return f
 
 func _gen_shot_p(rng: RandomNumberGenerator) -> PackedFloat32Array:

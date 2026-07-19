@@ -17,6 +17,7 @@ var flags: int = 0
 const FLAG_DESTRUCT := 1
 const FLAG_SPAWN := 2
 const FLAG_GOAL := 4
+const FLAG_KEEPOUT := 8   # keine blockierende Deko (Palme) auf dieser Zelle
 
 
 static func make(k: Kind, ebene: int) -> Tac3DTile:

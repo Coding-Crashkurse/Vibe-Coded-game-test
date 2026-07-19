@@ -25,12 +25,12 @@ const WEAPON_EULER_DEG := Vector3(0.0, 0.0, 0.0)
 # --- Blickrichtung (Facing) ---------------------------------------------------
 # Weiche Drehgeschwindigkeit des Mesh Richtung Ziel-Yaw (rad/s-artiges lerp_angle-Gewicht).
 const TURN_SPEED := 10.0
-# Das Quaternius-CharacterArmature schaut in seiner Bind-Pose nach WELT -Z (Gesicht = -Z;
-# per FRONTAL-Kamera aus +Z/-Z eindeutig verifiziert, s. main.gd-Probe). Unser Yaw ist
-# atan2(dx, dz); damit -Z-Front auf (dx,dz) zeigt, gilt rotation.y = atan2(dx,dz)+180.
-# WICHTIG: Der wahre Lauf-Bug war NICHT dieser Offset, sondern dass do_move face_toward()
-# und play_anim("walk") nie aufrief -> Figur behielt Spawn-Drehung, Beine standen still.
-const FACING_OFFSET_DEG := 180.0
+# Das Quaternius-CharacterArmature schaut in seiner Bind-Pose nach WELT +Z (Gesicht,
+# Kniepolster und Fussspitzen zeigen bei rotation.y=0 nach +Z — per Frontal-Kamera-
+# Screenshot des UNROTIERTEN Swat.glb verifiziert, 2026-07-19; die fruehere "-Z"-
+# Behauptung war falsch, die Figuren liefen dadurch rueckwaerts). Unser Yaw ist
+# atan2(dx, dz) mit +Z als 0-Richtung; eine +Z-Front braucht also KEINEN Offset.
+const FACING_OFFSET_DEG := 0.0
 
 # GDScript-Namen -> Quaternius-Clip-Namen (CharacterArmature-Rig, 24 Anims, kein Retarget).
 # S1 VERIFIZIERT (Phase 5): Godot behaelt beim glTF-Import die "CharacterArmature|<Name>"-
@@ -49,7 +49,7 @@ const _CLIPS := {
 	"reload": "CharacterArmature|Idle_Gun",     # KEIN echter Reload-Clip -> Halte-Pose
 	"hit": "CharacterArmature|HitRecieve",
 	"death": "CharacterArmature|Death",
-	"throw": "CharacterArmature|Gun_Shoot",      # KEIN echter Throw-Clip -> Fallback
+	"throw": "CharacterArmature|Sword_Slash",    # KEIN echter Throw-Clip -> Armschwung (Wurf-Naeherung)
 	"loot": "CharacterArmature|Interact",
 }
 

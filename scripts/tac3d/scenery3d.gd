@@ -1,9 +1,14 @@
 class_name Scenery3D
 extends Node3D
 ## PHASE 6 — stylisiert-tropische Insel-Deko ("Isla Corvo").
-## REINE DARSTELLUNG: erzeugt Waende (echte Hoehe), Daecher, Fels-Mesa,
+## DARSTELLUNG + Palmen-Kollision: erzeugt Waende (echte Hoehe), Daecher, Fels-Mesa,
 ## Natur-Scatter (Palmen + Lowpoly), Cover-Props, Strand-Sand und einen Steg.
-## Begehbarkeit/LOS/Kampf werden NICHT beruehrt — es entstehen KEINE Collider.
+## AUSNAHME vom "reine Optik"-Vertrag: Palmen-Zellen werden im Grid als
+## unbegehbar markiert (begehbar=false) — Soeldner duerfen nicht IN Palmen stehen.
+## Es entstehen weiterhin KEINE Physik-Collider; die Sperre lebt im Grid (Wahrheit),
+## der Pathfinder MUSS deshalb NACH build() gebaut werden. Zellen mit
+## FLAG_KEEPOUT (Spawns/Brueckenausgaenge/Rampenfuss, s. Tac3DMapGen) bleiben
+## deko-frei. Busch/Fels/Gras bleiben passierbar (reine Optik). LOS unberuehrt.
 ## Alles per MultiMesh/instanziert (Perf 72x72). Fehlt ein Asset -> weglassen
 ## bzw. Primitiv-Fallback -> Smoke bleibt gruen.
 ##
@@ -242,6 +247,14 @@ func _scatter(g: Grid3D, rng: RandomNumberGenerator) -> void:
 			continue
 		if t.cover > 0.0 or c.y != 0:
 			continue
+		# Keepout (MapGen): Spawns/Brueckenausgaenge/Rampenfuss bleiben deko-frei —
+		# eine Palme dort wuerde Einheiten einsperren oder die einzige Querung blocken.
+		if (t.flags & Tac3DTile.FLAG_KEEPOUT) != 0:
+			continue
+		# Link-Zellen (Bruecken-/Rampen-/Treppen-Endpunkte) nie belegen: dort haengt
+		# der einzige Ebenen-Uebergang dran (gilt auch fuer die Testkarte ohne Flags).
+		if g.has_link(c):
+			continue
 		ground.append(c)
 	ground.sort_custom(func(a, b): return (a.z * 100000 + a.x) < (b.z * 100000 + b.x))
 	if ground.is_empty():
@@ -291,6 +304,12 @@ func _scatter(g: Grid3D, rng: RandomNumberGenerator) -> void:
 			palm_p = PALM_P_SHORE
 		if r < palm_p and not _near_building(building, c) and _palm_far_enough(palm_cells, c):
 			palm_cells.append(c)
+			# KOLLISION: Palme belegt die Zelle -> im Grid unbegehbar. Deterministisch
+			# (fester SEED, unabhaengig von Assets) -> Headless == Spiel. Der Boden
+			# wird trotzdem gezeichnet (GroundView laesst GROUND-Zellen nicht fallen).
+			var pt: Tac3DTile = g.get_tile(c)
+			if pt != null:
+				pt.begehbar = false
 			var yaw := rng.randf() * TAU   # natuerliche Zufalls-Y-Rotation je Palme
 			# Etwas kleiner + deutlich mehr Groessen-Variation -> Einzelbaeume statt Klon-Reihe.
 			var s := palm_scale * rng.randf_range(0.55, 0.98)

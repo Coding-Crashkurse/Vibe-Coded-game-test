@@ -35,6 +35,18 @@ const DMGNUM_LIFE := 0.75
 const HITFLASH_LIFE := 0.12
 const EXPLOSION_LIGHT_ENERGY := 12.0
 
+# Politur: Huelsen / Staub / Rauch
+const SHELL_FLIGHT := 0.45         # s Flugzeit Muendung -> Boden
+const SHELL_LIFE := 2.4            # s Liegezeit bis zum Ausblenden
+
+# Granatwurf: Flugzeit skaliert mit Wurfweite, Bogenhoehe ebenso.
+const GRENADE_FLIGHT_MIN := 0.45   # s Basis-Flugzeit
+const GRENADE_FLIGHT_PER_M := 0.045  # s zusaetzlich je Meter Wurfweite
+const GRENADE_ARC_MIN := 1.2       # m minimale Bogenhoehe (Scheitel ueber der Sehne)
+const GRENADE_ARC_FACTOR := 0.30   # Bogenhoehe = Wurfweite * Faktor
+const DUST_COLOR := Color(0.60, 0.53, 0.40, 0.55)
+const SMOKE_COLOR := Color(0.22, 0.21, 0.19, 0.65)
+
 
 func setup(g: Grid3D, camera_rig: CameraRig3D) -> void:
 	grid = g
@@ -112,6 +124,88 @@ func tracer(from_world: Vector3, to_world: Vector3) -> void:
 	_free_after(mi, TRACER_LIFE)
 
 
+# ============================================================ Huelsenauswurf
+## Politur: kleine Messing-Huelse (Flinte: rote Kartusche) fliegt im Bogen nach
+## rechts, taumelt, landet mit "Klink", bleibt kurz liegen, blendet aus.
+## Kein Physik-Body — Parabel via tween_method (billig, deterministisch frei).
+## ground_y = Bodenhoehe der Schuetzen-Zelle, damit nichts in der Luft haengt.
+## Ausnahme vom "Juice ist stumm"-Muster: den Landezeitpunkt kennt nur die
+## Tween-Kette selbst, deshalb spielt SIE das Klink (Sfx.play ist fallback-sicher).
+func shell_casing(muzzle: Vector3, dir: Vector3, ground_y: float, shotgun := false) -> void:
+	# ~2x ueberzeichnet (Spiele-Konvention): massstabsgetreue 5-cm-Huelsen sind
+	# bei Ortho-Zoom 14+ sub-pixel-klein (Screenshot-Messung) und damit unsichtbar.
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.028 if shotgun else 0.021
+	cyl.bottom_radius = cyl.top_radius
+	cyl.height = 0.12 if shotgun else 0.08
+	var mat := StandardMaterial3D.new()   # beleuchtet (Sonne vorhanden): glitzert
+	mat.albedo_color = Color(0.72, 0.18, 0.12) if shotgun else Color(0.82, 0.62, 0.20)
+	mat.metallic = 0.2 if shotgun else 0.75
+	mat.roughness = 0.35
+	cyl.material = mat
+	var mi := MeshInstance3D.new()
+	mi.mesh = cyl
+	add_child(mi)
+	mi.global_position = muzzle
+
+	# Auswurf: rechts der Schussrichtung, leicht nach hinten, mit Streuung.
+	var side := dir.cross(Vector3.UP)
+	side = side.normalized() if side.length() > 0.001 else Vector3.RIGHT
+	var land := muzzle + side * randf_range(0.35, 0.7) - dir * randf_range(0.1, 0.3)
+	land.y = ground_y + cyl.top_radius + 0.01
+
+	var tw := mi.create_tween()
+	tw.set_parallel(true)
+	tw.tween_method(_shell_arc.bind(mi, muzzle, land, randf_range(0.22, 0.4)), 0.0, 1.0, SHELL_FLIGHT)
+	# Taumeln: 1-2 Ueberschlaege um X, landet liegend (x = 90 Grad + volle Drehungen).
+	var tumble := Vector3(PI * 0.5 + TAU * float(randi_range(1, 2)), randf() * TAU, 0.0)
+	tw.tween_property(mi, "rotation", tumble, SHELL_FLIGHT)
+	tw.chain().tween_callback(Sfx.play.bind("shell", -8.0, 0.3))
+	tw.chain().tween_interval(SHELL_LIFE)
+	tw.chain().tween_property(mi, "scale", Vector3.ONE * 0.01, 0.2)
+	tw.chain().tween_callback(mi.queue_free)
+
+## Parabel-Stuetzfunktion fuer shell_casing (t zuerst, Rest via bind angehaengt).
+func _shell_arc(t: float, mi: MeshInstance3D, start: Vector3, land: Vector3, arc_h: float) -> void:
+	if not is_instance_valid(mi):
+		return
+	var p := start.lerp(land, t)
+	p.y += arc_h * 4.0 * t * (1.0 - t)
+	mi.global_position = p
+
+
+# ============================================================ Granatwurf
+## Sichtbare Granate fliegt im hohen Bogen von der Wurfhand zur Zielkachel.
+## Wie shell_casing: kein Physik-Body — Parabel via tween_method (_shell_arc),
+## dazu Taumeln. Gibt die FLUGZEIT zurueck, damit der Orchestrator die
+## Explosion exakt auf den Einschlag legen kann (await dl(flugzeit)).
+func grenade_throw(from: Vector3, to: Vector3) -> float:
+	var dist := from.distance_to(to)
+	var flight := GRENADE_FLIGHT_MIN + dist * GRENADE_FLIGHT_PER_M
+	# ~2x ueberzeichnet (wie die Huelsen): eine massstabsgetreue 6-cm-Granate
+	# waere bei Ortho-Zoom 14+ sub-pixel-klein und damit unsichtbar.
+	var caps := CapsuleMesh.new()
+	caps.radius = 0.09
+	caps.height = 0.30
+	var mat := StandardMaterial3D.new()   # beleuchtet: liest sich als Objekt, nicht als Funke
+	mat.albedo_color = Color(0.24, 0.32, 0.18)   # Oliv
+	mat.roughness = 0.55
+	caps.material = mat
+	var mi := MeshInstance3D.new()
+	mi.mesh = caps
+	add_child(mi)
+	mi.global_position = from
+	# Bogenhoehe waechst mit der Wurfweite — kurze Wuerfe flacher, weite hoeher.
+	var arc_h := maxf(GRENADE_ARC_MIN, dist * GRENADE_ARC_FACTOR)
+	var tw := mi.create_tween()
+	tw.set_parallel(true)
+	tw.tween_method(_shell_arc.bind(mi, from, to, arc_h), 0.0, 1.0, flight)
+	# Taumeln: 2 Ueberschlaege vorwaerts + etwas Drall um die Hochachse.
+	tw.tween_property(mi, "rotation", Vector3(TAU * 2.0, randf() * TAU, TAU * 0.5), flight)
+	tw.chain().tween_callback(mi.queue_free)
+	return flight
+
+
 # ============================================================ Blut
 ## Bodendekal-Ersatz (Quad, KEIN Decal wg. Renderer) + kleiner roter Spritzer.
 func blood(world_pos: Vector3, ground_pos: Vector3) -> void:
@@ -179,6 +273,19 @@ func hit_flash(unit: Node3D) -> void:
 			mi.material_overlay = null)
 
 
+# ============================================================ Staub
+## Politur: kleiner Boden-Puff bei einem Schritt. Alpha-MIX statt additiv —
+## Staub ist DUNKLER als der Boden; additiv wuerde er leuchten wie Funken.
+func dust_puff(ground_pos: Vector3) -> void:
+	var p := _puff_particles(DUST_COLOR, 5, 0.45, 0.9)
+	p.direction = Vector3.UP
+	p.spread = 70.0
+	p.gravity = Vector3(0, 0.4, 0)   # leicht aufsteigend, haengt kurz in der Luft
+	add_child(p)
+	p.global_position = ground_pos + Vector3.UP * 0.06
+	_emit_oneshot_and_free(p, 0.6)
+
+
 # ============================================================ Explosion
 func explosion(world_pos: Vector3, radius: float) -> void:
 	var light := OmniLight3D.new()
@@ -199,6 +306,17 @@ func explosion(world_pos: Vector3, radius: float) -> void:
 	p.global_position = world_pos + Vector3.UP * 0.4
 	_emit_oneshot_and_free(p, 0.9)
 
+	# Politur: traege aufsteigender Rauch nach dem Feuerblitz (Alpha-MIX).
+	var smoke := _puff_particles(SMOKE_COLOR, 12, 1.7, 1.6)
+	smoke.direction = Vector3.UP
+	smoke.spread = 35.0
+	smoke.gravity = Vector3(0, 1.1, 0)   # Auftrieb statt Fall
+	smoke.scale_amount_min = 0.7
+	smoke.scale_amount_max = 1.4
+	add_child(smoke)
+	smoke.global_position = world_pos + Vector3.UP * 0.5
+	_emit_oneshot_and_free(smoke, 2.0)
+
 
 # ------------------------------------------------------------------ intern
 func _spark_particles(col: Color, amount: int, speed: float, life: float) -> CPUParticles3D:
@@ -216,6 +334,39 @@ func _spark_particles(col: Color, amount: int, speed: float, life: float) -> CPU
 	m.size = Vector2(0.12, 0.12)
 	p.mesh = m
 	p.material_override = _unshaded(col, true)   # additiv, unshaded
+	return p
+
+## Politur: weiche Alpha-Partikel (Staub/Rauch) — im Gegensatz zu _spark_particles
+## NICHT additiv (dunkle Puffs muessen den Boden abdunkeln koennen) und mit
+## Ausblend-Rampe: color_ramp (weiss -> transparent) multipliziert p.color.
+## BILLBOARD_PARTICLES: die grossen Quads muessen zur Ortho-Kamera zeigen,
+## sonst stehen sie schraeg in der Welt und wirken papierduenn.
+func _puff_particles(col: Color, amount: int, life: float, speed: float) -> CPUParticles3D:
+	var p := CPUParticles3D.new()
+	p.emitting = false
+	p.one_shot = true
+	p.explosiveness = 1.0
+	p.amount = amount
+	p.lifetime = life
+	p.initial_velocity_min = speed * 0.4
+	p.initial_velocity_max = speed
+	p.damping_min = 0.5
+	p.damping_max = 1.2
+	p.scale_amount_min = 0.35
+	p.scale_amount_max = 0.7
+	var m := QuadMesh.new()
+	m.size = Vector2(0.5, 0.5)
+	p.mesh = m
+	var mat := _unshaded(Color(1, 1, 1, 1), false)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.vertex_color_use_as_albedo = true
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	p.material_override = mat
+	p.color = col
+	var g := Gradient.new()
+	g.set_color(0, Color(1, 1, 1, 1))
+	g.set_color(1, Color(1, 1, 1, 0))
+	p.color_ramp = g
 	return p
 
 ## Falle one_shot: ERST add_child (im Baum), DANN emitting=true, sonst verpufft der

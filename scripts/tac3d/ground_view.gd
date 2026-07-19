@@ -61,7 +61,10 @@ func build(g: Grid3D) -> void:
 			continue
 		if t.kind == Tac3DTile.Kind.WALL:      # T3
 			continue
-		if not g.is_walkable(c):
+		# Palmen-Kollision: GROUND-Zellen, die Scenery3D als unbegehbar markiert hat
+		# (Palme belegt die Kachel), behalten ihre Boden-Box — sonst entstuende beim
+		# Rebuild ein Loch unter der Palme. Nur echte Nicht-Boeden (VOID) bleiben leer.
+		if not g.is_walkable(c) and t.kind != Tac3DTile.Kind.GROUND:
 			continue
 		var ki := int(t.kind)
 		if not by_kind.has(ki):

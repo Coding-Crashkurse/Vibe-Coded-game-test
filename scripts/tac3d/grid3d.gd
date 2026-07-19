@@ -55,6 +55,13 @@ func add_link(a: Vector3i, b: Vector3i) -> void:
 	_links[b] = lb
 
 
+## True, wenn die Zelle Endpunkt eines Ebenen-Links ist (Bruecke/Rampe/Treppe).
+## Solche Zellen duerfen nie von blockierender Deko (Palmen) belegt werden —
+## sonst stirbt der einzige Uebergang zwischen zwei Ebenen.
+func has_link(c: Vector3i) -> bool:
+	return _links.has(c)
+
+
 func neighbors(c: Vector3i) -> Array:
 	var result: Array = []
 	var dirs := [

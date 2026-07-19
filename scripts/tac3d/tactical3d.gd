@@ -72,15 +72,17 @@ func _ready() -> void:
 	meta = TestMap3D.build()
 	grid = meta["grid"]
 
-	# 4) Pathfinder ueber dem Grid.
-	pathfinder = Pathfinder3D.new()
-	pathfinder.build(grid)
-
-	# 5) GroundView unter WorldRoot einhaengen, dann bauen.
+	# 4) GroundView unter WorldRoot einhaengen, dann bauen — VOR dem Pathfinder:
+	#    Scenery3D markiert Palmen-Zellen als unbegehbar (Objekt-Kollision), und
+	#    der Pathfinder muss diese Sperren beim Bau bereits sehen.
 	ground = GroundView3D.new()
 	ground.name = "GroundView"
 	_world_root.add_child(ground)
 	ground.build(grid)
+
+	# 5) Pathfinder ueber dem Grid (inkl. Palmen-Sperren aus Scenery3D).
+	pathfinder = Pathfinder3D.new()
+	pathfinder.build(grid)
 
 	# 6) Kamera-Rig auf Feldgrenzen, Fokus auf Startzelle.
 	rig.setup(grid.bounds_world())
@@ -121,9 +123,12 @@ func _setup_lighting() -> void:
 	# --- Sonne: leicht gelblicher Vormittag, sichtbarer Schattenwurf. ---
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
-	sun.rotation = Vector3(deg_to_rad(-55.0), deg_to_rad(-40.0), 0.0)
-	sun.light_color = Color(1.0, 0.93, 0.78)   # warmes, gerichtetes Sonnenlicht
-	sun.light_energy = 1.15
+	# Politur: Sonne tiefer (-55 -> -45 Grad) = laengere Spaetnachmittag-Schatten.
+	# Energie 1.15 -> 1.33 kompensiert den flacheren Einfall auf dem Boden
+	# (sin55*1.15 ~ sin45*1.33), sonst kippt die pixelgetunte Art-Pass-Belichtung.
+	sun.rotation = Vector3(deg_to_rad(-45.0), deg_to_rad(-40.0), 0.0)
+	sun.light_color = Color(1.0, 0.91, 0.74)   # warmes, spaetes Sonnenlicht
+	sun.light_energy = 1.33
 	if not fast:
 		sun.shadow_enabled = true
 		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
@@ -170,6 +175,17 @@ func _setup_lighting() -> void:
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	e.tonemap_exposure = 0.74
 	e.tonemap_white = 1.0
+
+	# Politur: Glow/Bloom — seit Godot 4.3 auch im gl_compatibility-Renderer.
+	# Threshold 1.0 = nur echte HDR-Spitzen bluehen auf (Muendungsblitz-/
+	# Explosions-Licht auf Flaechen, Sonnenglitzer) — die Grundszene bleibt
+	# unangetastet, kein Milchglas-Wash.
+	e.glow_enabled = true
+	e.glow_intensity = 0.55
+	e.glow_strength = 1.0
+	e.glow_bloom = 0.0
+	e.glow_hdr_threshold = 1.0
+	e.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
 
 	# Farb-Boost fuer satte Tropenfarben (jetzt nicht mehr vom Ambient gewaschen).
 	e.adjustment_enabled = true
