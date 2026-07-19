@@ -41,6 +41,9 @@ func _ready() -> void:
 		if a.begins_with("--juice-shots="):
 			await _juice_shots(a.substr(14))
 			return
+		if a.begins_with("--demo3d-shots="):
+			await _demo3d_shots(a.substr(15))
+			return
 	if "--contact" in args:
 		fast = true
 		_contact_probe()
@@ -52,6 +55,10 @@ func _ready() -> void:
 	if "--smoke3d" in args:
 		fast = true
 		await _smoke3d()
+		return
+	if "--demo3d" in args:
+		fast = true
+		await _demo3d()
 		return
 	if "--hud3d" in args:   # OHNE fast=true -> HUD/Cursor werden gebaut (Interaktionstest)
 		await _hud3d()
@@ -841,6 +848,251 @@ func _hud3d_shots(outdir: String) -> void:
 	current.ui_aim()
 	await _wait(0.3)
 	await _snap(outdir + "/hud3d_02_aim.png")
+	get_tree().quit()
+
+# ============================================================ Demo-Inhalt (Phase 7)
+
+func _demo3d_fail(fails: int, msg: String) -> int:
+	push_error("DEMO3D-FEHLER: " + msg)
+	print("DEMO3D-FEHLER: ", msg)
+	return fails + 1
+
+## Setzt eine Unit sauber auf eine freie Zelle um (Muster wie _smoke3d_inventory I3).
+func _demo3d_place(tac, u, c: Vector3i) -> void:
+	tac._vacate(u.cell)
+	u.set_cell(c)
+	tac._occupy(u, c)
+
+## Frische Bot-Schlacht (FIX K2): jeder Unterabschnitt mit eigenem goto macht vorher
+## new_game()+set_difficulty()+hire(), sonst spawnt Otto (in Game.team nach Befreiung)
+## doppelt (regulaerer Soeldner UND captive).
+func _demo3d_fresh_battle() -> Node:
+	Game.new_game()
+	Game.set_difficulty("leicht")
+	for id in ["ivan", "fuchs", "doc", "nadel"]:
+		Game.hire(id)
+	goto("tactical3d_combat")
+	var tac = current
+	await tac.battle_ready
+	return tac
+
+## Headless-Nachweis des Demo-Inhalts (p7_1 §6.2): Keller/Otto (D1/D2), Befreiung (D3),
+## Basis heal/resupply (D4), Vargo-Logik einmalig (D5), Sieg-Regression (D6) und der
+## Etagen-Guard K1 (D7). fast=true -> keine UI/kein Audio, Kampf-Formeln unberuehrt.
+func _demo3d() -> void:
+	print("DEMO3D: Start")
+	var fails := 0
+
+	# ---------- D1: Karte — Keller erreichbar, Otto-Spawn begehbar auf Ebene -1 ----------
+	var mp := Tac3DMapGen.generate(20260718, "leicht")
+	var g: Grid3D = mp["grid"]
+	var otto_spawn: Vector3i = mp["otto_spawn"]
+	if otto_spawn.y != -1:
+		fails = _demo3d_fail(fails, "D1: otto_spawn nicht auf Ebene -1 (%s)" % str(otto_spawn))
+	if not g.is_walkable(otto_spawn):
+		fails = _demo3d_fail(fails, "D1: otto_spawn nicht begehbar (%s)" % str(otto_spawn))
+	if not mp.has("keller_entrance"):
+		fails = _demo3d_fail(fails, "D1: keller_entrance fehlt in der Karte")
+	var pf := Pathfinder3D.new()
+	pf.build(g)
+	if not pf.reachable(mp["merc_spawns"][0], otto_spawn):
+		fails = _demo3d_fail(fails, "D1: Keller (otto_spawn) vom Merc-Spawn nicht erreichbar")
+	print("DEMO3D: D1 Karte/Keller ok")
+
+	# ---------- D2..D5: eine frische Schlacht ----------
+	var tac = await _demo3d_fresh_battle()
+	# D2: Otto als Captive gespawnt, NICHT in mercs/enemies, Flags noch aus.
+	if tac.captive == null:
+		fails = _demo3d_fail(fails, "D2: captive ist null (Otto nicht gespawnt)")
+	else:
+		if tac.captive.cell != otto_spawn:
+			fails = _demo3d_fail(fails, "D2: captive steht nicht am otto_spawn (%s)" % str(tac.captive.cell))
+		if tac.captive in tac.mercs or tac.captive in tac.enemies or tac.captive in tac.units:
+			fails = _demo3d_fail(fails, "D2: captive faelschlich in mercs/enemies/units")
+	if Game.otto_freed:
+		fails = _demo3d_fail(fails, "D2: Game.otto_freed schon vor der Befreiung true")
+
+	# D3: Befreiung — lebenden Merc auf einen freien Kellernachbarn stellen, free_otto().
+	if tac.captive != null:
+		var cap: Tac3DUnit = tac.captive
+		var m0: Tac3DUnit = tac.mercs[0]
+		var neigh := Vector3i(-999, 0, -999)
+		for d in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]:
+			var n: Vector3i = cap.cell + d
+			if n.y == cap.cell.y and tac.grid.is_walkable(n) and not tac.occupied.has(n):
+				neigh = n
+				break
+		if neigh.x < -500:
+			fails = _demo3d_fail(fails, "D3: kein freier Kellernachbar fuer Otto gefunden")
+		else:
+			_demo3d_place(tac, m0, neigh)
+			var n0: int = tac.mercs.size()
+			await tac.free_otto()
+			if tac.captive != null:
+				fails = _demo3d_fail(fails, "D3: captive nach free_otto nicht null")
+			if tac.mercs.size() != n0 + 1:
+				fails = _demo3d_fail(fails, "D3: mercs waechst nicht um 1 (%d statt %d)" % [tac.mercs.size(), n0 + 1])
+			if not (Game.otto_freed and Game.base_unlocked):
+				fails = _demo3d_fail(fails, "D3: Flags otto_freed/base_unlocked nicht gesetzt")
+			if Game.team.is_empty() or String(Game.team.back()["id"]) != "otto":
+				fails = _demo3d_fail(fails, "D3: Otto nicht ans Game.team angehaengt")
+			var last: Tac3DUnit = tac.mercs.back()
+			if not last.is_merc:
+				fails = _demo3d_fail(fails, "D3: befreiter Otto ist nicht is_merc")
+			print("DEMO3D: D3 Befreiung ok")
+
+	# D4: Basis — Heilen + Nachschub (echt).
+	var mh: Tac3DUnit = tac.mercs[0]
+	mh.data["hp"] = 1
+	tac.base_heal_all()
+	if int(mh.data["hp"]) != mh.hp_max():
+		fails = _demo3d_fail(fails, "D4: base_heal_all heilte nicht auf hp_max (%d/%d)" % [int(mh.data["hp"]), mh.hp_max()])
+	mh.data["ammo"] = 0
+	mh.data["inv"] = []
+	tac.base_resupply_all()
+	if int(mh.data["ammo"]) != int(Db.weapon(mh.data["weapon"])["mag"]):
+		fails = _demo3d_fail(fails, "D4: base_resupply_all fuellte die Handwaffe nicht (%d)" % int(mh.data["ammo"]))
+	if (mh.data["inv"] as Array).size() <= 0:
+		fails = _demo3d_fail(fails, "D4: base_resupply_all fuellte die Taschen nicht mit Magazinen")
+	print("DEMO3D: D4 Basis (Heilen/Nachschub) ok")
+
+	# D5: Vargo-Logik — Boss sichtbar erzwingen, check_boss_dialog() einmalig.
+	if tac.boss == null:
+		fails = _demo3d_fail(fails, "D5: kein Boss auf der Karte")
+	else:
+		Game.boss_dialog_seen = false
+		tac.visible_cells[tac.boss.cell] = true
+		var r: bool = await tac.check_boss_dialog()
+		if not (r and Game.boss_dialog_seen):
+			fails = _demo3d_fail(fails, "D5: check_boss_dialog lieferte nicht (true, boss_dialog_seen)")
+		# Zweiter Aufruf darf NICHT erneut ausloesen (Reentrancy-Guard).
+		if await tac.check_boss_dialog():
+			fails = _demo3d_fail(fails, "D5: check_boss_dialog loeste ein zweites Mal aus")
+		print("DEMO3D: D5 Vargo-Logik ok")
+
+	# ---------- D7: Etagen-Guard (FIX K1) — frische Schlacht ----------
+	var tac7 = await _demo3d_fresh_battle()
+	if tac7.captive == null:
+		fails = _demo3d_fail(fails, "D7: captive ist null (Otto nicht gespawnt)")
+	else:
+		var cap7: Tac3DUnit = tac7.captive
+		var m7: Tac3DUnit = tac7.mercs[0]
+		# Falsch: Oberflaechenzelle direkt UEBER Otto (Ebene 0) — darf NICHT befreien.
+		var surface := Vector3i(cap7.cell.x, 0, cap7.cell.z)
+		if not tac7.grid.is_walkable(surface):
+			fails = _demo3d_fail(fails, "D7: Oberflaechenzelle ueber Otto nicht begehbar (%s)" % str(surface))
+		else:
+			_demo3d_place(tac7, m7, surface)
+			tac7.selected = m7
+			tac7.player_turn = true
+			tac7.busy = false
+			await tac7.ui_interact()
+			if tac7.captive == null:
+				fails = _demo3d_fail(fails, "D7: Otto von der Dorfoberflaeche aus befreit (Etagen-Bug K1!)")
+			else:
+				# Richtig: in den Keller (Ebene -1, flach-adjazent) — MUSS befreien.
+				# Freien flach-adjazenten Kellernachbarn suchen (gleiche Ebene wie Otto).
+				var kn := Vector3i(-999, 0, -999)
+				for d in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]:
+					var n: Vector3i = cap7.cell + d
+					if n.y == cap7.cell.y and tac7.grid.is_walkable(n) and not tac7.occupied.has(n):
+						kn = n
+						break
+				if kn.x < -500:
+					fails = _demo3d_fail(fails, "D7: kein freier Kellernachbar zum Gegentest")
+				else:
+					_demo3d_place(tac7, m7, kn)
+					tac7.selected = m7
+					await tac7.ui_interact()
+					if tac7.captive != null:
+						fails = _demo3d_fail(fails, "D7: Otto aus dem Keller NICHT befreibar (Guard zu streng)")
+					else:
+						print("DEMO3D: D7 Etagen-Guard ok")
+
+	# ---------- D6: Sieg-Regression — frische Schlacht + Testboost (FIX K2) ----------
+	Game.new_game()
+	Game.set_difficulty("leicht")
+	for id in ["ivan", "fuchs", "doc", "nadel"]:
+		Game.hire(id)
+	for m in Game.team:
+		m["hp"] = int(m["hp"]) * 2 + 60
+		m["hp_max"] = m["hp"]
+		m["marks"] = mini(95, int(m["marks"]) + 15)
+		var cal := String(Db.weapon(m["weapon"])["cal"])
+		while (m["inv"] as Array).size() < Db.INV_SLOTS:
+			m["inv"].append("mag_" + cal)
+	Game.boss_dialog_seen = false
+	goto("tactical3d_combat")
+	var tac6 = current
+	await tac6.battle_ready
+	var res: String = await tac6.auto_battle()
+	if res != "victory":
+		fails = _demo3d_fail(fails, "D6: Bot-Team siegte nicht trotz Captive-Otto (Ergebnis '%s')" % res)
+	elif tac6.captive == null:
+		# Captive darf den Sieg nicht stoeren, aber bei diesem Bot-Lauf wird Otto nie befreit.
+		fails = _demo3d_fail(fails, "D6: Otto wurde im Bot-Lauf unerwartet befreit")
+	else:
+		print("DEMO3D: D6 Sieg-Regression ok (Ergebnis %s)" % res)
+
+	if fails == 0:
+		print("DEMO3D OK")
+	else:
+		print("DEMO3D FAIL (%d)" % fails)
+	get_tree().quit(0 if fails == 0 else 1)
+
+## Fenster-Screenshots des Demo-Inhalts (p7_1 §6.3, BRAUCHT Display — nur lokal):
+## Keller mit Otto, Basis-Panel, Vargo-Dialog. fast bleibt false -> HUD/Panels existieren.
+func _demo3d_shots(outdir: String) -> void:
+	print("DEMO3D-SHOTS: nach ", outdir)
+	Sfx.muted = true
+	Game.new_game()
+	Game.set_difficulty("leicht")
+	for id in ["ivan", "fuchs", "doc", "nadel"]:
+		Game.hire(id)
+	goto("tactical3d_combat")
+	var tac = current
+	await tac.battle_ready
+
+	# 1) Keller: Merc flach-adjazent zu Otto (Ebene -1), Kamera hinab, aktive Ebene -1.
+	var cap: Tac3DUnit = tac.captive
+	if cap != null:
+		var m0: Tac3DUnit = tac.mercs[0]
+		var neigh := cap.cell
+		for d in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]:
+			var n: Vector3i = cap.cell + d
+			if n.y == cap.cell.y and tac.grid.is_walkable(n) and not tac.occupied.has(n):
+				neigh = n
+				break
+		tac._vacate(m0.cell)
+		m0.set_cell(neigh)
+		tac._occupy(m0, neigh)
+		tac.selected = m0
+		if tac.picker != null:
+			tac.picker.set_active_level(-1)
+		tac.rig.focus_world(tac.grid.cell_to_world(cap.cell))
+		tac.rig.set_zoom(10.0)
+		tac.compute_vision()
+		await _wait(0.6)
+		await _snap(outdir + "/demo3d_01_keller.png")
+
+		# 2) Basis-Panel: free_otto() oeffnet show_base_panel (await base_closed) —
+		#    NICHT blockierend awaiten, Panel baut sich synchron bis zum await auf.
+		tac.free_otto()
+		await _wait(0.5)
+		await _snap(outdir + "/demo3d_02_basis.png")
+		# Panel schliessen, damit der Vargo-Dialog frei liegt.
+		if tac.hud != null:
+			tac.hud.base_closed.emit()
+		await _wait(0.3)
+
+	# 3) Vargo-Dialog: Boss sichtbar erzwingen, check_boss_dialog() oeffnet das Panel.
+	if tac.boss != null:
+		Game.boss_dialog_seen = false
+		tac.visible_cells[tac.boss.cell] = true
+		tac.check_boss_dialog()
+		await _wait(0.6)
+		await _snap(outdir + "/demo3d_03_vargo.png")
+	print("DEMO3D-SHOTS: fertig")
 	get_tree().quit()
 
 # ============================================================ 3D-Juice / Game-Feel (Phase 4)

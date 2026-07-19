@@ -10,6 +10,8 @@ var team: Array = []          # Runtime-Dicts der angeheuerten Söldner
 var mission_result := ""      # "", "victory", "defeat", "abort"
 var stats := {}
 var boss_dialog_seen := false
+var otto_freed := false
+var base_unlocked := false
 
 func _ready() -> void:
 	new_game()
@@ -20,6 +22,8 @@ func new_game() -> void:
 	team = []
 	mission_result = ""
 	boss_dialog_seen = false
+	otto_freed = false
+	base_unlocked = false
 	stats = {"turns": 0, "shots": 0, "hits": 0, "loot": 0, "fallen": []}
 
 func set_difficulty(d: String) -> void:

@@ -16,6 +16,15 @@ extends CanvasLayer
 
 var orch = null                       # Orchestrator (UNTYPED — Zyklus-Falle)
 
+# Phase 7 — Dialog-/Basis-Panel-Signale (aus Button-Callbacks emittiert)
+signal dialog_next
+signal dialog_choice(idx: int)
+signal base_closed
+
+# Phase 7 — W1: solange ein modales Panel (Vargo-Dialog/Basis) offen ist, schluckt
+# der Orchestrator seine Hotkeys (_unhandled_input: `if hud.modal_active: return`).
+var modal_active := false
+
 var _root: Control
 var _top_label: Label
 var _enemy_label: Label
@@ -33,6 +42,11 @@ var _cursor_panel: PanelContainer
 var _cursor_label: Label
 var _banner_label: Label
 var _slots: Array = []                 # [{btn,hp,ap,stat}, ...] fuer orch.mercs
+
+# Phase 7 — W2: Portrait-Spalten als Member, damit rebuild_slots() nach Ottos
+# Befreiung die Slots (2 links / 3 rechts) sauber neu aufbauen kann.
+var _left_col: VBoxContainer
+var _right_col: VBoxContainer
 
 var _pause_panel: Control = null
 var _inv_panel: PanelContainer = null
@@ -73,21 +87,21 @@ func build(o) -> void:
 
 	# Portrait-Seitenleisten (JA1): 0–1 links, 2–3 rechts
 	_slots = []
-	var left := VBoxContainer.new()
-	left.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT)
-	left.offset_left = 8.0
-	left.offset_top = -170.0
-	left.add_theme_constant_override("separation", 10)
-	_root.add_child(left)
-	var right := VBoxContainer.new()
-	right.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
-	right.offset_right = -8.0
-	right.offset_left = -144.0
-	right.offset_top = -170.0
-	right.add_theme_constant_override("separation", 10)
-	_root.add_child(right)
+	_left_col = VBoxContainer.new()
+	_left_col.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT)
+	_left_col.offset_left = 8.0
+	_left_col.offset_top = -170.0
+	_left_col.add_theme_constant_override("separation", 10)
+	_root.add_child(_left_col)
+	_right_col = VBoxContainer.new()
+	_right_col.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
+	_right_col.offset_right = -8.0
+	_right_col.offset_left = -144.0
+	_right_col.offset_top = -170.0
+	_right_col.add_theme_constant_override("separation", 10)
+	_root.add_child(_right_col)
 	for i in orch.mercs.size():
-		var side := left if i < 2 else right
+		var side := _left_col if i < 2 else _right_col
 		side.add_child(_build_slot(i))
 
 	# Untere Aktionsleiste (mittig)
@@ -222,7 +236,7 @@ func refresh() -> void:
 			if en.seen:
 				seen += 1
 	_enemy_label.text = "Feinde: %d gesichtet · %d verbleibend" % [seen, total]
-	for i in orch.mercs.size():
+	for i in _slots.size():          # W2: ueber _slots iterieren (nicht mercs) -> nie OOB
 		var m: Tac3DUnit = orch.mercs[i]
 		var sb: Dictionary = _slots[i]
 		sb["hp"].max_value = m.hp_max()
@@ -490,3 +504,196 @@ func _on_inv_drop(i: int) -> void:
 		inv.remove_at(i)
 	_inv_sel = -1
 	refresh()
+
+
+# ================================================================= Phase 7: Slot-Neuaufbau (W2)
+
+## Baut die Portrait-Spalten nach Ottos Befreiung neu auf (jetzt 5 Soeldner:
+## 2 links / 3 rechts). MUSS in free_otto direkt nach mercs.append(otto) laufen,
+## VOR jedem _hud_refresh()/compute_vision() — sonst schriebe refresh() in stale/fehlende _slots.
+func rebuild_slots() -> void:
+	if _left_col == null or _right_col == null:
+		return
+	for c in _left_col.get_children():
+		c.queue_free()
+	for c in _right_col.get_children():
+		c.queue_free()
+	_slots.clear()
+	for i in orch.mercs.size():
+		var side := _left_col if i < 2 else _right_col
+		side.add_child(_build_slot(i))
+	refresh()
+
+
+# ================================================================= Phase 7: Vargo-Dialog (Port aus tactical.gd:942, FIX C1)
+
+## Modaler Boss-Dialog. Panel als Kind von _root (CanvasLayer) — nie unter dem
+## Node3D-Orchestrator. Der Orchestrator ruft `await hud.show_boss_dialog()` in
+## check_boss_dialog() genau einmal (Game.boss_dialog_seen steht davor).
+func show_boss_dialog() -> void:
+	modal_active = true
+	Sfx.play("interrupt", -4.0)
+	var layer := Control.new()
+	layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	_root.add_child(layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.5)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(dim)
+
+	var bottom := VBoxContainer.new()
+	bottom.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bottom.alignment = BoxContainer.ALIGNMENT_END
+	layer.add_child(bottom)
+	var centerc := CenterContainer.new()
+	bottom.add_child(centerc)
+	bottom.add_child(UiTheme.vspace(150))
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(980, 220)
+	centerc.add_child(panel)
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 18)
+	panel.add_child(hb)
+	var por := TextureRect.new()
+	por.texture = Assets.portrait(Db.ENEMY_TYPES["boss"]["portrait"])
+	por.custom_minimum_size = Vector2(140, 140)
+	por.stretch_mode = TextureRect.STRETCH_SCALE
+	por.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	por.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	hb.add_child(por)
+	var vb := VBoxContainer.new()
+	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vb.add_theme_constant_override("separation", 8)
+	hb.add_child(vb)
+	var speaker := UiTheme.header("»GENERAL« VARGO", 22)
+	vb.add_child(speaker)
+	var text := UiTheme.lbl("", 18)
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.custom_minimum_size = Vector2(720, 84)
+	vb.add_child(text)
+	var btnrow := HBoxContainer.new()
+	btnrow.alignment = BoxContainer.ALIGNMENT_END
+	btnrow.add_theme_constant_override("separation", 10)
+	vb.add_child(btnrow)
+
+	var responder := "Söldner"
+	var merc_line := ""
+	if Game.has_ivan():
+		responder = "Ivan"
+		merc_line = Db.IVAN_DIALOG_LINE
+	else:
+		var tp: Dictionary = Game.top_paid()
+		if not tp.is_empty():
+			responder = "»%s«" % tp["nick"]
+
+	var vargo_i := 0
+	for line in Db.BOSS_DIALOG:
+		var is_vargo: bool = line["speaker"] == "vargo"
+		speaker.text = "»GENERAL« VARGO" if is_vargo else responder.to_upper()
+		speaker.add_theme_color_override("font_color", UiTheme.COL_RED if is_vargo else UiTheme.COL_AMBER)
+		var t: String = line["text"]
+		if not is_vargo and merc_line != "":
+			t = merc_line
+		# Vertonung (gebackene ElevenLabs-Clips, fallback-sicher)
+		if is_vargo:
+			vargo_i += 1
+			Sfx.play_voice("vargo_%d" % vargo_i)
+		elif Game.has_ivan():
+			Sfx.play_voice("ivan_dialog")
+		else:
+			var tp2: Dictionary = Game.top_paid()
+			if not tp2.is_empty():
+				Sfx.play_voice(String(tp2["id"]) + "_reply")
+		await _type_text(text, t)
+		for c in btnrow.get_children():
+			c.queue_free()
+		var next := UiTheme.btn("Weiter  ▸", func() -> void: dialog_next.emit(), 16)
+		btnrow.add_child(next)
+		await dialog_next
+
+	for c in btnrow.get_children():
+		c.queue_free()
+	speaker.text = "IHRE ANTWORT"
+	speaker.add_theme_color_override("font_color", UiTheme.COL_AMBER)
+	text.text = ""
+	for i in Db.BOSS_CHOICES.size():
+		var ch: Dictionary = Db.BOSS_CHOICES[i]
+		var b := UiTheme.btn(ch["label"], func() -> void: dialog_choice.emit(i), 16)
+		btnrow.add_child(b)
+	var choice: int = await dialog_choice
+	var reply := String(Db.BOSS_CHOICES[choice]["reply"])
+	if reply != "":
+		for c in btnrow.get_children():
+			c.queue_free()
+		speaker.text = "»GENERAL« VARGO"
+		speaker.add_theme_color_override("font_color", UiTheme.COL_RED)
+		Sfx.play_voice("vargo_3")
+		await _type_text(text, reply)
+		var next2 := UiTheme.btn("Kampf!  ▸", func() -> void: dialog_next.emit(), 16)
+		btnrow.add_child(next2)
+		await dialog_next
+	layer.queue_free()
+	Sfx.play_voice("vargo_kampf")
+	banner("VARGO: JETZT GEHT ES UM ALLES!", 1.2)
+	modal_active = false
+
+
+## Typewriter-Effekt (Port aus tactical.gd:1049). Im HUD ist orch.fast immer false
+## (HUD existiert nur bei not fast) — defensiv dennoch geprueft.
+func _type_text(l: Label, t: String) -> void:
+	l.text = t
+	if orch.fast:
+		return
+	l.visible_characters = 0
+	var tw := create_tween()
+	tw.tween_property(l, "visible_characters", t.length(), t.length() * 0.014)
+	await tw.finished
+	l.visible_characters = -1
+
+
+# ================================================================= Phase 7: Heimatbasis „Der Unterschlupf" (K3, FIX C1)
+
+## Modales Basis-Menue, EINMAL bei Ottos Befreiung geoeffnet. Panel als Kind von
+## _root (CanvasLayer). K3-Umfang: Heilen + Nachschub echt (rufen orch.base_*),
+## Anheuern + Speichern sichtbar aber disabled (in der Demo nicht verfuegbar).
+func show_base_panel() -> void:
+	modal_active = true
+	var layer := Control.new()
+	layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	_root.add_child(layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.55)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(dim)
+	var cc := CenterContainer.new()
+	cc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(cc)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(560, 0)
+	cc.add_child(panel)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 10)
+	panel.add_child(v)
+	var hd := UiTheme.header("DER UNTERSCHLUPF", 30, UiTheme.COL_AMBER)
+	hd.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(hd)
+	v.add_child(UiTheme.lbl("Otto »Bär« Brandt schließt sich eurem Kommando an. Von diesem Keller aus operiert ihr.", 15))
+	# Aktive Aktionen (K3: echt)
+	v.add_child(UiTheme.btn("Trupp heilen (gratis)", func() -> void:
+		orch.base_heal_all(), 16))
+	v.add_child(UiTheme.btn("Nachschub fassen (Munition auffüllen)", func() -> void:
+		orch.base_resupply_all(), 16))
+	# Ausbaustufe (K3: sichtbar, aber disabled)
+	var hire_btn := UiTheme.btn("Anheuern — (in der Demo nicht verfügbar)", func() -> void: pass, 16)
+	hire_btn.disabled = true
+	v.add_child(hire_btn)
+	var save_btn := UiTheme.btn("Speichern — (in der Demo nicht verfügbar)", func() -> void: pass, 16)
+	save_btn.disabled = true
+	v.add_child(save_btn)
+	v.add_child(UiTheme.btn("Weiter  ▸", func() -> void: base_closed.emit(), 17))
+	await base_closed
+	layer.queue_free()
+	modal_active = false

@@ -292,6 +292,8 @@ Jede Phase hält den Grundsatz aus v2: **öffnet ohne Skriptfehler, Headless-Smo
 
 3 Sektoren · 1 Keller-Basis · 1 Dorf mit einfacher Loyalität · Miliz als Deko · kein Tageszyklus/Gehälter-Abrechnung · keine Minen · Haltungen minimal (Hocken) · Zerstörbarkeit leicht · kein Ragdoll-Pflicht. Alles so gebaut, dass **Städte, Loyalität, Milizen, Einkommen und weitere Sektoren** sauber andocken.
 
+Basis „Der Unterschlupf" (MVP) = **Trupp heilen + Nachschub fassen** (beides echt, gratis); **Anheuern** und **Speichern** = Ausbaustufe (post-Demo, als sichtbare `disabled`-Stubs beschriftet).
+
 ---
 
 ## 16. Quellen & Credits

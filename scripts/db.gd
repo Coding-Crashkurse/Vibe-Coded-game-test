@@ -153,6 +153,18 @@ const MERCS := [
 	},
 ]
 
+# ------------------------------------------------------------------ Otto (befreibarer Verbündeter)
+# Befreibarer Verbündeter (NICHT in MERCS -> taucht nicht im v2-Anheuern-Screen auf).
+# Stimme = bestehende "walross"-Clips (gruff/schwer, passt zum "Bär"). Keine Generierung.
+const OTTO := {
+	"id": "otto", "name": "Otto Brandt", "nick": "Bär", "voice": "walross",
+	"quote": "Habt ihr lang genug gebraucht.",
+	"hp": 90, "marks": 80, "agi": 52, "med": 25, "exp": 3,
+	"weapon": "k45", "inv": ["mag_45", "mag_45", "mag_45", "granate", "medkit"], "cost": 0,
+	"sprite": "survivor1", "tint": Color(1, 1, 1),
+	"portrait": {"skin": Color(0.86, 0.66, 0.5), "hair": Color(0.6, 0.55, 0.5), "style": 0, "shades": false, "beard": true, "cap": null, "cloth": Color(0.35, 0.42, 0.3)},
+}
+
 # ------------------------------------------------------------------ Gegner
 # Gegner sehen einen Tick kürzer als Söldner (12 vs. 13) — der Spieler
 # bekommt den ersten Sichtkontakt. Treffsicherheit bewusst moderat.
@@ -229,6 +241,23 @@ static func merc_def(id: String) -> Dictionary:
 		if m["id"] == id:
 			return m
 	return {}
+
+# Laufzeit-Dict für Otto (Spiegel von Game._runtime, aber ohne hire/Budget).
+# Damit Orchestrator und Test denselben Dict bekommen.
+static func otto_runtime() -> Dictionary:
+	var d := OTTO
+	var w: Dictionary = weapon(d["weapon"])
+	var inv: Array = []
+	for it in d["inv"]:
+		inv.append(it)
+	return {
+		"id": d["id"], "name": d["name"], "nick": d["nick"], "voice": d["voice"],
+		"hp": int(d["hp"]), "hp_max": int(d["hp"]),
+		"marks": int(d["marks"]), "agi": int(d["agi"]), "med": int(d["med"]), "exp": int(d["exp"]),
+		"weapon": d["weapon"], "ammo": int(w["mag"]), "inv": inv, "ammo_store": {},
+		"armor": 0.0, "sight": 13, "sprite": d["sprite"], "tint": d["tint"],
+		"portrait": d["portrait"], "cost": int(d["cost"]), "kills": 0, "alive": true,
+	}
 
 static func roll_loot(rng: RandomNumberGenerator) -> String:
 	var total := 0

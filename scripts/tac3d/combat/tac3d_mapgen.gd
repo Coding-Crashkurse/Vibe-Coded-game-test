@@ -29,6 +29,11 @@ const MERC_SPAWNS := [
 # Anwesen, Ebene 1
 const BOSS_HOME := Vector3i(58, 1, 8)
 
+# Keller "Der Unterschlupf" UNTER dem Dorf. Kellereingang auf Ebene 0 (frei: kein
+# Gebaeude/Spawn/Cover), Otto im Kellerraum auf Ebene -1. Sackgasse (kein Shortcut).
+const KELLER_ENTRANCE := Vector3i(32, 0, 32)
+const OTTO_SPAWN := Vector3i(32, -1, 33)
+
 # diff-Tags exakt wie MapGen: "all" (10, inkl. boss) + "normal" (3) + "hard" (4).
 # Summe je Grad: leicht 10 · normal 13 · schwer 17 (== Db.DIFFICULTY[diff]["enemies"]).
 # Cluster im Dorf (z~24..46) + Vorposten suedlich des Flusses (z~44..46), damit der
@@ -129,6 +134,9 @@ static func generate(seed: int, difficulty: String) -> Dictionary:
 		"deep_under_deck": Vector3i(35, 0, RIVER_MID),
 		"deck_over_deep": Vector3i(35, 1, RIVER_MID),
 		"bridge_cells": bridge_cells,
+		# Keller "Der Unterschlupf": Otto-Spawn (Ebene -1) + Kellereingang (Ebene 0).
+		"otto_spawn": OTTO_SPAWN,
+		"keller_entrance": KELLER_ENTRANCE,
 	}
 
 
@@ -218,13 +226,18 @@ static func _scatter_cover(g: Grid3D, _rng: RandomNumberGenerator, loot_out: Arr
 		loot_out.append(c)
 
 
-## Optionaler Keller (Ebene -1) unter dem Anwesen als Andockpunkt (spec §6.2).
-## Kleiner FLOOR-Raum, per Link an den Anwesen-Boden angebunden (Sackgasse, kein Shortcut).
+## Keller (Ebene -1) UNTER dem Dorf = spaetere Heimatbasis "Der Unterschlupf".
+## Kellereingang (Ebene 0) mit add_link hinab -> Sackgasse, kein Pathfinding-Shortcut.
+## Kollidiert mit keinem VILLAGE_BUILDINGS/ENEMY_SPAWNS/COVER_CELLS (verifiziert).
 static func _keller(g: Grid3D) -> void:
-	for z in range(6, 11):
-		for x in range(56, 61):
+	# Eingangsstiege im Dorf (Ebene 0) — FLOOR-Zelle, optisch spaeter Treppe/Luke.
+	g.set_tile(KELLER_ENTRANCE, Tac3DTile.make(Tac3DTile.Kind.FLOOR, 0))
+	# Kellerraum Ebene -1 (x=30..34, z=30..34).
+	for z in range(30, 35):
+		for x in range(30, 35):
 			g.set_tile(Vector3i(x, -1, z), Tac3DTile.make(Tac3DTile.Kind.FLOOR, -1))
-	g.add_link(Vector3i(58, -1, 6), Vector3i(58, 1, 6))
+	# Treppe: Eingang (0) <-> Kellerzelle direkt darunter (-1).
+	g.add_link(KELLER_ENTRANCE, Vector3i(32, -1, 32))
 
 
 ## diff-Filter exakt wie MapGen.generate: all/normal/hard + LEICHT-Downgrade elite→miliz.

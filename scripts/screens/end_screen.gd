@@ -31,6 +31,8 @@ func _ready() -> void:
 		hd.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(hd)
 		v.add_child(UiTheme.lbl("»General« Vargo ist gefallen. Die restliche Miliz hat sich ergeben.\nSilberquell ist frei.", 17))
+		if Game.otto_freed:
+			v.add_child(UiTheme.lbl("Otto Bär Brandt lebt — der Unterschlupf hält.", 17, UiTheme.COL_GREEN))
 		if not Sfx.play_music("victory"):
 			Sfx.play("victory")
 	elif res == "abort":

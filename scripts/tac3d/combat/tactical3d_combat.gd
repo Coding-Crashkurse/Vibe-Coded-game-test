@@ -29,6 +29,7 @@ var units: Array = []            # alle Tac3DUnit
 var mercs: Array = []
 var enemies: Array = []
 var boss: Tac3DUnit = null
+var captive: Tac3DUnit = null    # Otto, bis befreit (NICHT in mercs/units/enemies)
 var occupied: Dictionary = {}    # Vector3i -> Tac3DUnit
 var corpses: Dictionary = {}     # Vector3i -> Tac3DUnit
 var visible_cells: Dictionary = {}   # Vector3i -> true (K2: pro Zielzelle gesehen)
@@ -159,6 +160,10 @@ func _ready() -> void:
 		_world_root.add_child(juice)
 		juice.setup(grid, rig)
 
+	# 12c) Phase 7 — Erkundungs-Musik (gebacken, fallback-sicher). Nur not fast (Bot rein).
+	if not fast:
+		Sfx.play_music("exploration")
+
 	# 13) battle_ready DEFERRED (Fix §10.9): Harness await'et nach add_child.
 	battle_ready.emit.call_deferred()
 
@@ -192,6 +197,24 @@ func _spawn_units() -> void:
 		if type == "boss":
 			boss = u
 			u.home = meta["boss_home"]
+	_spawn_otto()
+
+
+## Phase 7 — Otto als Gefangener (captive). is_merc=true -> Swat-Modell (ohne tac3d_unit/
+## assets3d anzufassen), aber NICHT in mercs/units/enemies: keine KI, kein Ziel, keine
+## Sieg-/Niederlage-Zaehlung. Belegt seine Zelle (Pathfinder-Block), grau bis befreit.
+func _spawn_otto() -> void:
+	if not meta.has("otto_spawn"):
+		return
+	var u := Tac3DUnit.new()
+	u.fast = fast
+	_units_root.add_child(u)
+	u.setup_combat(grid, Db.otto_runtime(), true, meta["otto_spawn"])
+	u.home = meta["otto_spawn"]
+	u.set_tint(Color(0.65, 0.62, 0.55))   # "gefangen"-Grau, bis befreit (dann Merc-Blau)
+	_occupy(u, u.cell)
+	captive = u
+	# NICHT in mercs/units/enemies! (keine KI, kein Ziel, keine Sieg-/Niederlage-Zaehlung)
 
 
 # 1:1 aus tactical.gd:148-160 — frisches Enemy-Runtime-Dict. duplicate(true), damit die
@@ -464,6 +487,10 @@ func start_combat() -> void:
 		uu.interrupt_used = false
 	if hud != null:
 		hud.banner("FEINDKONTAKT — Rundenkampf!")
+	# Phase 7 — Kampf-Sting + Kampfmusik (nur not fast, fallback-sicher).
+	if not fast:
+		Sfx.play("interrupt", -2.0)
+		Sfx.play_music("combat")
 	_hud_refresh()
 
 
@@ -474,6 +501,9 @@ func _end_combat_mode() -> void:
 	for m in mercs:
 		var merc: Tac3DUnit = m
 		merc.ap = merc.ap_max
+	# Phase 7 — zurueck zur Erkundungs-Musik.
+	if not fast:
+		Sfx.play_music("exploration")
 	_hud_refresh()
 
 
@@ -831,7 +861,7 @@ func on_death(killer, dead) -> void:
 		dead.play_anim("death")
 		rig.add_trauma(Juice3D.TRAUMA_KILL)
 		if dead.is_merc:
-			var vid := String(dead.data.get("id", "")) + "_pain"
+			var vid := _voice_id(dead) + "_pain"   # Otto -> walross_pain
 			if Sfx.has_voice(vid):
 				Sfx.play_voice(vid)
 			else:
@@ -922,6 +952,10 @@ func check_boss_dialog() -> bool:
 	Game.boss_dialog_seen = true
 	boss.data["alerted"] = true
 	alert_enemies(_nearest_merc_cell(boss.cell), boss.cell, 9.0)
+	# Phase 7 — modaler Vargo-Dialog (nur not fast + hud). boss_dialog_seen steht davor
+	# -> genau einmal, auch bei mehreren await check_boss_dialog()-Aufrufstellen.
+	if not fast and hud != null:
+		await hud.show_boss_dialog()
 	return true
 
 
@@ -1133,6 +1167,9 @@ func ui_select(u) -> void:
 		return
 	selected = u
 	mode = "move"
+	# Phase 7 — Auswahl-Spruch (Otto=walross via _voice_id; sonst <id>_select). Nur not fast.
+	if not fast:
+		Sfx.play_voice(_voice_id(u) + "_select")
 	if picker != null:
 		picker.set_active_level(u.cell.y)   # Klicks/Hover auf der Ebene des Soeldners aufloesen
 	_hud_refresh()
@@ -1183,6 +1220,71 @@ func ui_menu() -> void:
 		hud.toggle_pause()
 
 
+# ================================================================= Phase 7: Otto / Basis / Audio
+
+## Stimm-ID: Otto traegt "voice"="walross" -> walross_*; alle anderen fallen auf ihre id
+## zurueck (kein "voice"-Feld). Fuer _select/_pain-Clips.
+func _voice_id(u) -> String:
+	return String(u.data.get("voice", u.data.get("id", "")))
+
+
+## Interaktion (Taste F): befreit Otto NUR aus dem Keller (K1: Etagengleichheit +
+## flach-adjazent). Von der Dorfoberflaeche aus (andere Ebene) unmoeglich.
+func ui_interact() -> void:
+	if not _can_act() or captive == null:
+		return
+	if selected.cell.y == captive.cell.y and selected.flat().distance_to(captive.flat()) <= 1.6:
+		await free_otto()
+	elif hud != null:
+		hud.banner("Kein Ziel zum Interagieren in Reichweite.")
+
+
+## Befreiung = der Kern-Story-Beat. FIX W2: rebuild_slots() SOFORT nach mercs/units.append,
+## DAVOR KEIN _hud_refresh()/compute_vision() (sonst OOB in refresh, mercs > _slots).
+func free_otto() -> void:
+	if captive == null or battle_over:
+		return
+	var otto := captive
+	captive = null                       # Reentrancy-Guard: nur einmal
+	otto.set_tint(otto.team_color())     # -> Merc-Blau
+	otto.ap = otto.ap_max
+	mercs.append(otto)
+	units.append(otto)
+	if hud != null:
+		hud.rebuild_slots()              # W2: Portrait-Spalten neu (jetzt 5), VOR jedem refresh
+	Game.team.append(otto.data)          # umgeht bewusst TEAM_MAX (5. Mitglied)
+	Game.otto_freed = true
+	Game.base_unlocked = true
+	if not fast:
+		Sfx.play_voice(_voice_id(otto) + "_select")   # walross_select
+	if hud != null:
+		hud.banner("OTTO »BÄR« BRANDT BEFREIT — Der Unterschlupf ist unser.", 2.0)
+	compute_vision()
+	_hud_refresh()
+	if not fast and hud != null:
+		await hud.show_base_panel()       # Heimatbasis-Menue (K3)
+
+
+## Basis-Aktion (K3): Trupp voll heilen. Nur hp_max, keine Formel-Aenderung.
+func base_heal_all() -> void:
+	for m in mercs:
+		var u: Tac3DUnit = m
+		u.data["hp"] = u.hp_max()
+	_hud_refresh()
+
+
+## Basis-Aktion (K3): Nachschub. Handwaffe voll + Taschen mit Magazinen bis Db.INV_SLOTS.
+## Ganzzahlarithmetik unberuehrt (nur mag/cal), keine Treffer-/AP-Formel angefasst.
+func base_resupply_all() -> void:
+	for m in mercs:
+		var u: Tac3DUnit = m
+		u.data["ammo"] = int(Db.weapon(u.data["weapon"])["mag"])
+		var cal := String(Db.weapon(u.data["weapon"])["cal"])
+		while inv_of(u).size() < Db.INV_SLOTS:
+			inv_of(u).append("mag_" + cal)
+	_hud_refresh()
+
+
 func _unhandled_input(ev) -> void:
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		# Kamera-Drehung bleibt immer verfuegbar (auch nach Kampfende).
@@ -1193,6 +1295,9 @@ func _unhandled_input(ev) -> void:
 		if ev.keycode == KEY_E:
 			if rig != null:
 				rig.rotate_step(1)
+			return
+		# W1: modales Panel (Vargo-Dialog/Basis) offen -> Aktions-Hotkeys schlucken.
+		if hud != null and hud.modal_active:
 			return
 		if battle_over:   # FIX M5: Aktions-Tasten nach Kampfende sperren.
 			return
@@ -1207,6 +1312,8 @@ func _unhandled_input(ev) -> void:
 				ui_grenade_mode()
 			KEY_H:
 				ui_medkit()
+			KEY_F:
+				ui_interact()
 			KEY_I:
 				ui_inventory()
 			KEY_ENTER, KEY_KP_ENTER:
@@ -1253,6 +1360,15 @@ func _handle_click() -> void:
 		_hud_refresh()
 		return
 	var tgt: Tac3DUnit = occupied.get(target, null)
+	# Phase 7 — Captive-Klick VOR dem Merc-Zweig (Otto ist is_merc=true, wuerde sonst
+	# faelschlich per ui_select ausgewaehlt). K1: nur bei Etagengleichheit + flach-adjazent.
+	if captive != null and tgt == captive:
+		if selected.alive and selected.cell.y == captive.cell.y \
+		   and selected.flat().distance_to(captive.flat()) <= 1.6:
+			await free_otto()
+		elif hud != null:
+			hud.banner("Näher an Otto heran (in den Keller absteigen).")
+		return
 	if tgt != null and not tgt.is_merc and tgt.alive and tgt.seen:
 		if vision.los(selected.cell, tgt.cell):
 			busy = true
@@ -1310,6 +1426,14 @@ func _update_hover() -> void:
 			hud.set_cursor("Granate werfen: %d AP · Radius %.1f" % [int(Db.GRENADE["ap"]), float(Db.GRENADE["radius"])], mpos)
 		else:
 			hud.set_cursor("Außer Reichweite", mpos)
+		return
+	# Phase 7 — Otto-Hover (K1: Befreien nur bei Etagengleichheit + flach-adjazent).
+	if captive != null and hover_cell == captive.cell:
+		cursor.show_target(hover_cell, "search")
+		if selected.cell.y == captive.cell.y and selected.flat().distance_to(captive.flat()) <= 1.6:
+			hud.set_cursor("Otto befreien [F]", mpos)
+		else:
+			hud.set_cursor("Otto — in den Keller absteigen", mpos)
 		return
 	var tgt: Tac3DUnit = occupied.get(hover_cell, null)
 	if tgt != null and not tgt.is_merc and tgt.alive and tgt.seen:
