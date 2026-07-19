@@ -1,7 +1,9 @@
 extends Control
 ## Main — Screen-Router (Root-Control, füllt automatisch das Fenster).
-## Außerdem: Headless-Smoke-Test (--smoke), Kontakt-Sonde (--contact)
-## und Screenshot-Modus (--shots=<ordner>).
+## 3D-Testmodi: --tac3d (Fundament), --smoke3d (Kampf-Bot bis Sieg),
+## --hud3d (HUD/Interaktion), --demo3d (Demo-Inhalt) + Fenster-Screenshot-Modi
+## --tac3d-shots=/--hud3d-shots=/--juice-shots=/--demo3d-shots=<ordner>.
+## (Der 2D-Teil wurde entfernt — 3D ist das Hauptspiel.)
 
 var current: Node = null
 var fast := false
@@ -12,7 +14,6 @@ const SCREENS := {
 	"hire": "res://scripts/screens/hire.gd",
 	"island": "res://scripts/screens/island.gd",
 	"loading": "res://scripts/screens/loading.gd",
-	"tactical": "res://scripts/screens/tactical.gd",
 	"tactical3d": "res://scripts/tac3d/tactical3d.gd",
 	"tactical3d_combat": "res://scripts/tac3d/combat/tactical3d_combat.gd",
 	"end": "res://scripts/screens/end_screen.gd",
@@ -24,14 +25,7 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var args := OS.get_cmdline_user_args()
-	if "--smoke" in args:
-		fast = true
-		_smoke()
-		return
 	for a in args:
-		if a.begins_with("--shots="):
-			_shots(a.substr(8))
-			return
 		if a.begins_with("--tac3d-shots="):
 			_tac3d_shots(a.substr(14))
 			return
@@ -44,10 +38,6 @@ func _ready() -> void:
 		if a.begins_with("--demo3d-shots="):
 			await _demo3d_shots(a.substr(15))
 			return
-	if "--contact" in args:
-		fast = true
-		_contact_probe()
-		return
 	if "--tac3d" in args:
 		fast = true
 		await _tac3d_probe()
@@ -78,29 +68,6 @@ func goto(screen: String) -> void:
 func _unhandled_input(ev: InputEvent) -> void:
 	if ev is InputEventKey and ev.pressed and not ev.echo and ev.keycode == KEY_M:
 		Sfx.toggle_mute()
-
-## Diagnose: Wer sieht wen beim Missionsstart? (für alle Schwierigkeitsgrade)
-func _contact_probe() -> void:
-	for diff in ["leicht", "normal", "schwer"]:
-		Game.new_game()
-		Game.set_difficulty(diff)
-		for id in ["ivan", "fuchs", "doc", "nadel"]:
-			Game.hire(id)
-		goto("tactical")
-		var tac = current
-		await tac.battle_ready
-		var any := false
-		for e in tac.enemies:
-			for m in tac.mercs:
-				if tac.unit_sees(e, m.cell):
-					any = true
-					print("CONTACT [%s]: %s @%s sieht %s @%s" % [diff, e.data["name"], str(e.cell), m.display_name(), str(m.cell)])
-				if tac.unit_sees(m, e.cell):
-					any = true
-					print("CONTACT [%s]: %s @%s sieht %s @%s" % [diff, m.display_name(), str(m.cell), e.data["name"], str(e.cell)])
-		if not any:
-			print("CONTACT [%s]: sauber — niemand sieht niemanden (%d Gegner)" % [diff, tac.enemies.size()])
-	get_tree().quit()
 
 # ============================================================ 3D-Taktik-Sonde (Phase 1)
 
@@ -508,213 +475,7 @@ func _smoke3d_inventory(tac, fails: int) -> int:
 		print("SMOKE3D: I3 Kisten-Loot ok")
 	return fails
 
-# ============================================================ Smoke-Test
-
-func _fail(fails: int, msg: String) -> int:
-	push_error("SMOKE-FEHLER: " + msg)
-	print("SMOKE-FEHLER: ", msg)
-	return fails + 1
-
-func _smoke() -> void:
-	print("SMOKE: Start")
-	var fails := 0
-
-	# --- Kartengenerierung (alle Schwierigkeitsgrade)
-	for diff in ["leicht", "normal", "schwer"]:
-		var mp := MapGen.generate(4242, diff)
-		var expected := int(Db.DIFFICULTY[diff]["enemies"])
-		if mp["enemy_spawns"].size() != expected:
-			fails = _fail(fails, "[%s] Gegnerzahl %d statt %d" % [diff, mp["enemy_spawns"].size(), expected])
-		var wk: Array = mp["walk"]
-		for sp in mp["merc_spawns"]:
-			if not wk[sp.y * MapGen.W + sp.x]:
-				fails = _fail(fails, "[%s] Söldner-Spawn blockiert: %s" % [diff, str(sp)])
-		for es in mp["enemy_spawns"]:
-			var c: Vector2i = es["cell"]
-			if not wk[c.y * MapGen.W + c.x]:
-				fails = _fail(fails, "[%s] Gegner-Spawn blockiert: %s (%s)" % [diff, str(c), es["type"]])
-	var map := MapGen.generate(4242, "leicht")
-	if not _reachable(map["walk"], Vector2i(3, 24), Vector2i(32, 2)):
-		fails = _fail(fails, "Boss vom Spawn aus nicht erreichbar")
-	if map["loot_cells"].size() < 5:
-		fails = _fail(fails, "Zu wenige Loot-Kisten: %d" % map["loot_cells"].size())
-	for es in map["enemy_spawns"]:
-		if String(es["type"]).begins_with("elite"):
-			fails = _fail(fails, "LEICHT enthält noch Elitewachen (%s)" % es["type"])
-			break
-	print("SMOKE: Karten ok (Loot-Kisten: %d, Requisiten: %d)" % [map["loot_cells"].size(), map["props"].size()])
-
-	# --- Anheuern (LEICHT: Preisfaktor 1,0 → exakte Budgetrechnung)
-	Game.new_game()
-	Game.set_difficulty("leicht")
-	if not Game.hire("ivan"):
-		fails = _fail(fails, "Ivan konnte nicht angeheuert werden")
-	if not Game.hire("fuchs"):
-		fails = _fail(fails, "Fuchs konnte nicht angeheuert werden")
-	if not Game.hire("doc"):
-		fails = _fail(fails, "Doc konnte nicht angeheuert werden")
-	if Game.hire("blitz"):
-		fails = _fail(fails, "Blitz anheuern hätte am Budget scheitern müssen")
-	if not Game.hire("nadel"):
-		fails = _fail(fails, "Nadel konnte nicht angeheuert werden")
-	if Game.team.size() != 4 or Game.budget != 0:
-		fails = _fail(fails, "Team %d / Budget %d — erwartet 4 / 0" % [Game.team.size(), Game.budget])
-	# Preisfaktor-Check
-	Game.set_difficulty("schwer")
-	if Game.eff_cost(1000) != 1500:
-		fails = _fail(fails, "Preisfaktor SCHWER falsch: %d" % Game.eff_cost(1000))
-	Game.set_difficulty("leicht")
-	print("SMOKE: Anheuern ok — Team: ", ", ".join(Game.team.map(func(m): return String(m["nick"]))))
-
-	# Testboost: Bot spielt grob — mit Boost muss der komplette Siegpfad klappen.
-	for m in Game.team:
-		m["hp"] = int(m["hp"]) * 2 + 60
-		m["hp_max"] = m["hp"]
-		m["marks"] = mini(95, int(m["marks"]) + 15)
-		var cal := String(Db.weapon(m["weapon"])["cal"])
-		while (m["inv"] as Array).size() < Db.INV_SLOTS:
-			m["inv"].append("mag_" + cal)
-	print("SMOKE: Testboost für Bot-Team aktiv")
-
-	# --- Taktik-Schlacht (Bot vs. KI, Schwierigkeit LEICHT → 10 Gegner)
-	goto("tactical")
-	var tac = current
-	await tac.battle_ready
-	print("SMOKE: Schlacht beginnt — Gegner: %d, Söldner: %d" % [tac.enemies.size(), tac.mercs.size()])
-	if tac.enemies.size() != 10:
-		fails = _fail(fails, "Gegnerzahl %d statt 10 (leicht)" % tac.enemies.size())
-	if tac.combat_started or tac._any_contact():
-		fails = _fail(fails, "Mission startet mit Feindkontakt — Spawn liegt im Sichtfeld")
-	else:
-		print("SMOKE: Spawn neutral — Anmarschphase aktiv")
-	var res: String = await tac.auto_battle()
-	print("SMOKE: Missionsergebnis = %s nach %d Runden (Schüsse: %d, Treffer: %d)" % [res, int(Game.stats["turns"]), int(Game.stats["shots"]), int(Game.stats["hits"])])
-	if res != "victory":
-		fails = _fail(fails, "Bot-Team hätte mit Testboost siegen sollen (Ergebnis: '%s')" % res)
-	else:
-		if not Game.boss_dialog_seen:
-			fails = _fail(fails, "Sieg ohne Boss-Sichtung/Dialog")
-		for e in tac.enemies:
-			if e.alive:
-				fails = _fail(fails, "Nach dem Sieg lebt noch ein Gegner")
-				break
-
-	# --- Inventar-/Loot-Funktionstests (nach Schlachtende, Karte noch geladen)
-	var mt: BattleUnit = null
-	for m in tac.mercs:
-		if m.alive:
-			mt = m
-			break
-	if mt != null:
-		# Nachladen verbraucht ein Magazin
-		var cal2 := String(Db.weapon(mt.data["weapon"])["cal"])
-		mt.data["inv"] = ["mag_" + cal2]
-		mt.data["ammo"] = 0
-		mt.ap = 99
-		tac.battle_over = false
-		tac.do_reload(mt)
-		tac.battle_over = true
-		if int(mt.data["ammo"]) != int(Db.weapon(mt.data["weapon"])["mag"]) or (mt.data["inv"] as Array).size() != 0:
-			fails = _fail(fails, "Nachladen: Magazin wurde nicht korrekt verbraucht")
-		else:
-			print("SMOKE: Magazin-Nachladen ok")
-		# Waffenwechsel
-		mt.data["inv"] = ["k45"]
-		mt.ap = 99
-		tac.do_swap(mt, 0)
-		if String(mt.data["weapon"]) != "k45":
-			fails = _fail(fails, "Waffenwechsel fehlgeschlagen")
-		else:
-			print("SMOKE: Waffenwechsel ok")
-		# Kiste durchsuchen
-		var lootc := Vector2i(-1, -1)
-		for c in tac.loot_cells:
-			if tac.search_target_at(c) == "crate":
-				lootc = c
-				break
-		if lootc.x >= 0:
-			var placed := false
-			for dy in range(-1, 2):
-				for dx in range(-1, 2):
-					if placed or (dx == 0 and dy == 0):
-						continue
-					var n: Vector2i = lootc + Vector2i(dx, dy)
-					if tac.in_bounds(n) and tac.walk[n.y * MapGen.W + n.x] and not tac.occupied.has(n):
-						tac._vacate(mt.cell)
-						mt.set_cell(n)
-						tac._occupy(mt, n)
-						placed = true
-			if placed:
-				mt.ap = 99
-				mt.data["inv"] = []
-				tac.do_search(mt, lootc)
-				if tac.search_target_at(lootc) == "crate":
-					fails = _fail(fails, "Kiste nach Durchsuchen nicht als geleert markiert")
-				else:
-					print("SMOKE: Kisten-Loot ok (%d Item(s) insgesamt gelootet)" % int(Game.stats["loot"]))
-		else:
-			print("SMOKE: Hinweis — alle Kisten zerstört, Loot-Test übersprungen")
-
-	# --- Endscreen
-	goto("end")
-	await get_tree().process_frame
-	await get_tree().process_frame
-	print("SMOKE: Endscreen ok")
-
-	if fails == 0:
-		print("SMOKE OK")
-	else:
-		print("SMOKE FAIL (%d Fehler)" % fails)
-	get_tree().quit(0 if fails == 0 else 1)
-
-func _reachable(walk: Array, from: Vector2i, to: Vector2i) -> bool:
-	var w := MapGen.W
-	var h := MapGen.H
-	var seen := {}
-	var queue: Array = [from]
-	seen[from] = true
-	while not queue.is_empty():
-		var c: Vector2i = queue.pop_front()
-		if c == to:
-			return true
-		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-			var n: Vector2i = c + d
-			if n.x < 0 or n.y < 0 or n.x >= w or n.y >= h:
-				continue
-			if seen.has(n) or not walk[n.y * w + n.x]:
-				continue
-			seen[n] = true
-			queue.append(n)
-	return false
-
 # ============================================================ Screenshots
-
-func _shots(outdir: String) -> void:
-	print("SHOTS: nach ", outdir)
-	Sfx.muted = true
-	goto("title")
-	await _wait(1.0)
-	await _snap(outdir + "/01_titel.png")
-	Game.new_game()
-	Game.set_difficulty("leicht")
-	for id in ["ivan", "fuchs", "doc", "nadel"]:
-		Game.hire(id)
-	goto("hire")
-	await _wait(0.6)
-	await _snap(outdir + "/02_anheuern.png")
-	goto("island")
-	await _wait(0.6)
-	await _snap(outdir + "/03_insel.png")
-	goto("tactical")
-	await current.battle_ready
-	current.cam.position = Vector2(16 * 64, 15 * 64)
-	await _wait(0.8)
-	await _snap(outdir + "/04_taktik.png")
-	current.cam.position = Vector2(32 * 64, 5 * 64)
-	await _wait(0.4)
-	await _snap(outdir + "/05_anwesen.png")
-	print("SHOTS: fertig")
-	get_tree().quit()
 
 func _tac3d_shots(outdir: String) -> void:
 	print("TAC3D-SHOTS: nach ", outdir)
@@ -883,6 +644,15 @@ func _hud3d_shots(outdir: String) -> void:
 		await _wait(0.55)
 		await _snap(outdir + "/hud3d_07_move_away.png")
 		await _wait(1.2)
+	# BiA-Inventar (Back-in-Action-Look): INVENTAR-Tab + WERTE-Tab ablichten.
+	current.ui_inventory()
+	await _wait(0.6)
+	await _snap(outdir + "/hud3d_08_inventar_bia.png")
+	current.hud._inv_tab = 1
+	current.hud._inv_refresh()
+	await _wait(0.3)
+	await _snap(outdir + "/hud3d_09_inventar_werte.png")
+	current.hud.toggle_inventory()
 	get_tree().quit()
 
 # ============================================================ Demo-Inhalt (Phase 7)
