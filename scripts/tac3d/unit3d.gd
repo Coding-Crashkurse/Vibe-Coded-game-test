@@ -43,6 +43,11 @@ const _CLIPS := {
 	"loot": "CharacterArmature|Interact",
 }
 
+# Dauer-Anims loopen; One-Shots (shoot/hit/death/throw/loot) laufen einmal.
+const _LOOPING := {
+	"idle": true, "walk": true, "run": true, "aim": true, "reload": true,
+}
+
 var grid: Grid3D
 var cell := Vector3i.ZERO
 var moving := false
@@ -59,6 +64,9 @@ func setup(g: Grid3D, start: Vector3i, char_id := "merc") -> void:
 	add_child(_mesh)
 	# AnimationPlayer null-sicher rekursiv suchen (Fallback-Kapsel hat keinen).
 	_anim = _find_anim(_mesh)
+	# One-Shot-Anims (Schuss/Treffer) sollen nach Ende zu Idle zurueckkehren.
+	if _anim != null and not _anim.animation_finished.is_connected(_on_anim_finished):
+		_anim.animation_finished.connect(_on_anim_finished)
 	# Waffe an den echten Hand-Bone hängen (nur wenn ein Skelett existiert).
 	var skel := _find_skeleton(_mesh)
 	if skel != null:
@@ -95,8 +103,24 @@ func play_anim(which: String) -> void:
 	if _anim == null:
 		return
 	var clip: String = _CLIPS.get(which, "CharacterArmature|Idle")
-	if _anim.has_animation(clip):
-		_anim.play(clip)
+	if not _anim.has_animation(clip):
+		return
+	# glTF-Clips importieren OHNE Loop -> Dauer-Anims wuerden EINMAL spielen und
+	# einfrieren ("quasi 0 Animation"). Loop-Modus je Clip-Typ setzen.
+	var a := _anim.get_animation(clip)
+	if a != null:
+		a.loop_mode = Animation.LOOP_LINEAR if bool(_LOOPING.get(which, false)) else Animation.LOOP_NONE
+	_anim.play(clip)
+
+
+## One-Shot-Anims kehren nach Ende zu Idle zurueck. Loop-Anims feuern
+## animation_finished nie (laufen ewig); der Tod bleibt liegen.
+func _on_anim_finished(anim_name: StringName) -> void:
+	if _anim == null:
+		return
+	if String(anim_name) == String(_CLIPS["death"]):
+		return
+	play_anim("idle")
 
 
 func follow_path(world_points: Array) -> void:

@@ -848,6 +848,16 @@ func _hud3d_shots(outdir: String) -> void:
 	current.ui_aim()
 	await _wait(0.3)
 	await _snap(outdir + "/hud3d_02_aim.png")
+	# FIX-CHECK Animation: zwei Frames waehrend "Laufen" -> muessen sich unterscheiden.
+	current.mercs[0].play_anim("walk")
+	await _wait(0.15)
+	await _snap(outdir + "/hud3d_03_walk_a.png")
+	await _wait(0.45)
+	await _snap(outdir + "/hud3d_04_walk_b.png")
+	# FIX-CHECK Kamera: grosser Pan -> Ansicht muss sich verschieben.
+	current.rig.pan(Vector2(40.0, 0.0))
+	await _wait(0.3)
+	await _snap(outdir + "/hud3d_05_panned.png")
 	get_tree().quit()
 
 # ============================================================ Demo-Inhalt (Phase 7)

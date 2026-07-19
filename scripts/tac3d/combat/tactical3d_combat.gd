@@ -63,7 +63,9 @@ const MOVE_AP := {
 	Tac3DTile.Move.CLIMB: 3,
 }
 const HEIGHT_HIT_BONUS := 8.0    # Trefferbonus je Ebene Hoehenvorteil (spec §6.2)
-const PAN_SPEED := 12.0
+const PAN_SPEED := 24.0
+var _cam_dragging := false   # Mittelmaus gedrueckt = Karte greifen und scrollen
+var _drag_last := Vector2.ZERO
 
 var _world_root: Node3D
 var _units_root: Node3D
@@ -1472,6 +1474,17 @@ func _update_hover() -> void:
 func _process(dt: float) -> void:
 	if rig == null:
 		return
+	# Mittelmaus-Ziehen = Karte scrollen (Frame-Delta der Mausposition).
+	var mpos := get_viewport().get_mouse_position()
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
+		if _cam_dragging and rig.cam != null:
+			var wpp := rig.cam.size / float(maxi(1, get_viewport().get_visible_rect().size.y))
+			var d := mpos - _drag_last
+			rig.pan(Vector2(-d.x, -d.y) * wpp)
+		_cam_dragging = true
+	else:
+		_cam_dragging = false
+	_drag_last = mpos
 	var pan := Vector2.ZERO
 	if Input.is_key_pressed(KEY_W):
 		pan.y -= 1.0
