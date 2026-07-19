@@ -19,6 +19,11 @@ const TILE := 1.0            # = Grid3D.TILE_SIZE
 const LEVEL_STEP := 3.0      # = Grid3D.LEVEL_STEP
 const TOP_Y := 0.1           # Oberkante der Boden-Box (BoxMesh 0.2 hoch)
 const WATER_Y := 0.15        # Wasseroberflaeche (fuer Steg)
+const PALM_MIN_DIST := 4      # Mindestabstand zwischen Palmen (in Zellen)
+const PALM_KEEPOUT := 2       # Palmen-Sperrradius um Gebaeude-Zellen (Zellen)
+const PALM_P_BEACH := 0.10    # Palmen-Chance am Strand (vor Mindestabstand)
+const PALM_P_SHORE := 0.07    # Palmen-Chance am Ufer
+const PALM_P_INLAND := 0.025  # Palmen-Chance im Inland (sehr spaerlich)
 
 var _mat_cache := {}
 
@@ -217,7 +222,16 @@ func _scatter(g: Grid3D, rng: RandomNumberGenerator) -> void:
 		palm_scale = a3d.nature_normalized_scale("palm")
 		palm_mat = a3d.nature_material("palm")
 
-	var palm_x := []   # Array[Transform3D]
+	# Gebaeude-Zellen (WALL/FLOOR) fuer Keepout: keine Palmen an/in Gebaeuden.
+	var building := {}
+	for k in g.all_cells():
+		var bc: Vector3i = k
+		var bt: Tac3DTile = g.get_tile(bc)
+		if bt != null and (bt.kind == Tac3DTile.Kind.WALL or bt.kind == Tac3DTile.Kind.FLOOR):
+			building[bc] = true
+
+	var palm_x := []      # Array[Transform3D]
+	var palm_cells := []  # bereits gesetzte Palmen-Zellen -> Mindestabstand
 	var bush_x := []
 	var rock_x := []
 
@@ -227,18 +241,19 @@ func _scatter(g: Grid3D, rng: RandomNumberGenerator) -> void:
 		var beach: bool = c.z >= BEACH_Z
 		var shore := _is_shore(g, c)
 		var r := rng.randf()
-		# Palmen: Strand/Ufer palmengesaeumt (Dichte gedrosselt, damit die Soeldner
-			# am Spawn nicht hinter einer Palmenwand verschwinden — Kriterium b:
-			# lesbar/plausible), spaerlich am Dschungelrand im Inland.
-		var palm_p := 0.03
+		# Palmen: WENIGE, weit gestreut. Strand/Ufer bevorzugt, Inland sehr spaerlich.
+		# Mindestabstand (PALM_MIN_DIST) + Gebaeude-Keepout verhindern das fruehere
+		# Dickicht -> unterschiedlich grosse Einzelpalmen statt Palmenwand.
+		var palm_p := PALM_P_INLAND
 		if beach:
-			palm_p = 0.14
+			palm_p = PALM_P_BEACH
 		elif shore:
-			palm_p = 0.10
-		if r < palm_p:
-			var yaw := rng.randf() * TAU
-			var s := palm_scale * rng.randf_range(0.88, 1.12)
-			var jitter := Vector3(rng.randf_range(-0.25, 0.25), 0.0, rng.randf_range(-0.25, 0.25))
+			palm_p = PALM_P_SHORE
+		if r < palm_p and not _near_building(building, c) and _palm_far_enough(palm_cells, c):
+			palm_cells.append(c)
+			var yaw := rng.randf() * TAU   # natuerliche Zufalls-Y-Rotation je Palme
+			var s := palm_scale * rng.randf_range(0.72, 1.04)   # moderater, leicht variiert
+			var jitter := Vector3(rng.randf_range(-0.2, 0.2), 0.0, rng.randf_range(-0.2, 0.2))
 			palm_x.append(Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3(s, s, s)), base + jitter))
 			continue
 		# Kein Palmen-Feld -> evtl. Busch/Fels (nur Inland, nicht am nackten Strand).
@@ -262,7 +277,7 @@ func _scatter(g: Grid3D, rng: RandomNumberGenerator) -> void:
 				var am := pm as ArrayMesh
 				if am.get_surface_count() > 0:
 					am.surface_set_material(0, palm_mat)
-			_add_mm(g, "Palms", pm, palm_x)
+			_add_mm(g, "Palms", pm, palm_x, true)   # Palmen werfen Schatten
 		elif a3d != null and a3d.has_method("nature_mesh"):
 			var holder := Node3D.new()
 			holder.name = "PalmsFallback"
@@ -271,6 +286,7 @@ func _scatter(g: Grid3D, rng: RandomNumberGenerator) -> void:
 				var node: Node3D = a3d.nature_mesh("palm")
 				if node != null:
 					node.transform = palm_x[i]
+					_enable_shadows(node)   # Fallback-Palme wirft Schatten
 					holder.add_child(node)
 
 	if not bush_x.is_empty():
@@ -328,6 +344,7 @@ func _cover_props(g: Grid3D) -> void:
 		var node: Node3D = a3d.prop(id)
 		if node != null:
 			node.position = g.cell_to_world(c) + Vector3(0.0, TOP_Y, 0.0)
+			_enable_shadows(node)   # Cover-Props werfen Schatten
 			holder.add_child(node)
 		i += 1
 
@@ -390,7 +407,7 @@ func _components(cellset: Dictionary) -> Array:
 
 
 ## Baut eine MultiMeshInstance3D (Reihenfolge-Falle beachtet) + custom_aabb.
-func _add_mm(g: Grid3D, node_name: String, mesh: Mesh, xforms: Array) -> void:
+func _add_mm(g: Grid3D, node_name: String, mesh: Mesh, xforms: Array, cast_shadow := false) -> void:
 	if mesh == null or xforms.is_empty():
 		return
 	var mm := MultiMesh.new()
@@ -402,9 +419,39 @@ func _add_mm(g: Grid3D, node_name: String, mesh: Mesh, xforms: Array) -> void:
 	var mmi := MultiMeshInstance3D.new()
 	mmi.name = node_name
 	mmi.multimesh = mm
-	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF   # T6
+	# T6: default kein Schatten (Waende/Daecher/Sand/Steg); Palmen aktivieren ihn.
+	mmi.cast_shadow = (GeometryInstance3D.SHADOW_CASTING_SETTING_ON if cast_shadow
+			else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
 	mmi.custom_aabb = _field_aabb(g)
 	add_child(mmi)
+
+
+## Palme mind. PALM_KEEPOUT Zellen von jeder Gebaeude-Zelle entfernt halten.
+func _near_building(building: Dictionary, c: Vector3i) -> bool:
+	for dz in range(-PALM_KEEPOUT, PALM_KEEPOUT + 1):
+		for dx in range(-PALM_KEEPOUT, PALM_KEEPOUT + 1):
+			if building.has(Vector3i(c.x + dx, c.y, c.z + dz)):
+				return true
+	return false
+
+
+## True, wenn c von allen bereits gesetzten Palmen mind. PALM_MIN_DIST entfernt ist.
+func _palm_far_enough(placed: Array, c: Vector3i) -> bool:
+	for pc in placed:
+		var p: Vector3i = pc
+		var dx := c.x - p.x
+		var dz := c.z - p.z
+		if dx * dx + dz * dz < PALM_MIN_DIST * PALM_MIN_DIST:
+			return false
+	return true
+
+
+## Schatten fuer eine Prop-/Fallback-Palmen-Hierarchie rekursiv aktivieren.
+func _enable_shadows(n: Node) -> void:
+	if n is GeometryInstance3D:
+		(n as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	for ch in n.get_children():
+		_enable_shadows(ch)
 
 
 func _field_aabb(g: Grid3D) -> AABB:

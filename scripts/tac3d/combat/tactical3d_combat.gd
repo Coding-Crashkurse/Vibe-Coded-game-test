@@ -254,18 +254,72 @@ func dl(t: float) -> void:
 	await get_tree().create_timer(t).timeout
 
 
+## Warme Tropen-Sonne + Himmel/Environment (ART-PASS). Additiv, fallback-sicher.
+## Schatten nur wenn NICHT fast (Headless/Bot brauchen keine Schattenkarte).
 func _setup_lighting() -> void:
+	# --- Sonne: leicht gelblicher Vormittag, sichtbarer Schattenwurf. ---
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.rotation = Vector3(deg_to_rad(-55.0), deg_to_rad(-40.0), 0.0)
-	sun.light_energy = 1.1
+	sun.light_color = Color(1.0, 0.95, 0.82)   # warmes Sonnenlicht
+	sun.light_energy = 1.0
+	if not fast:
+		sun.shadow_enabled = true
+		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+		# 72x72-Feld -> Schattenreichweite hoch, Acne über Bias/Normal-Bias zähmen.
+		sun.directional_shadow_max_distance = 220.0
+		sun.directional_shadow_split_1 = 0.08
+		sun.directional_shadow_split_2 = 0.20
+		sun.directional_shadow_split_3 = 0.50
+		sun.shadow_bias = 0.04
+		sun.shadow_normal_bias = 1.5
+		sun.shadow_blur = 1.0
 	add_child(sun)
+
+	# --- Environment: warmer Prozedural-Himmel, filmischer Tonemap. ---
 	var env := WorldEnvironment.new()
 	env.name = "WorldEnvironment"
 	var e := Environment.new()
-	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color(0.55, 0.6, 0.65)
-	e.ambient_light_energy = 0.7
+
+	var sky_mat := ProceduralSkyMaterial.new()
+	sky_mat.sky_top_color = Color(0.36, 0.56, 0.82)       # kräftiges Vormittagsblau
+	sky_mat.sky_horizon_color = Color(0.78, 0.82, 0.80)   # dunstiger, warmer Horizont
+	sky_mat.sky_energy_multiplier = 1.0
+	sky_mat.ground_bottom_color = Color(0.44, 0.42, 0.36) # warmer Sand-/Erdton
+	sky_mat.ground_horizon_color = Color(0.72, 0.72, 0.66)
+	sky_mat.sun_angle_max = 30.0
+	sky_mat.sky_curve = 0.09
+	var sky := Sky.new()
+	sky.sky_material = sky_mat
+	e.background_mode = Environment.BG_SKY
+	e.sky = sky
+
+	# Ambient aus dem Himmel -> Schattenpartien bleiben farbig statt tot-schwarz.
+	# ART-PASS T7b: Ambient deutlich gesenkt (1.0->0.45), damit die Sonne die Szene
+	# modelliert (Schattenkontrast) statt sie flach zu fluten und helle Texturen
+	# (Wand/Sand) ins Weiss zu blasen.
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	e.ambient_light_sky_contribution = 0.5
+	e.ambient_light_energy = 0.3
+
+	# Filmischer Tonemap; Exposure leicht runter (1.0->0.9) gegen ausgebrannte
+	# Weissflaechen an Gebaeudewaenden/Strandsand.
+	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	e.tonemap_exposure = 0.9
+	e.tonemap_white = 1.0
+
+	# Farb-Boost fuer satte Tropenfarben (jetzt nicht mehr vom Ambient gewaschen).
+	e.adjustment_enabled = true
+	e.adjustment_contrast = 1.08
+	e.adjustment_saturation = 1.18
+	e.adjustment_brightness = 1.0
+
+	# Dezenter, warmer Luftdunst für Tiefe (gl_compatibility rendert einfachen Fog).
+	e.fog_enabled = true
+	e.fog_light_color = Color(0.82, 0.80, 0.72)
+	e.fog_density = 0.0012
+	e.fog_sky_affect = 0.0
+
 	env.environment = e
 	add_child(env)
 

@@ -88,6 +88,8 @@ func setup(g: Grid3D, start: Vector3i, char_id := "merc") -> void:
 		gun.position = WEAPON_OFFSET
 		gun.rotation_degrees = WEAPON_EULER_DEG
 		att.add_child(gun)
+	# Charakter-Meshes sollen im Sonnenlicht Schatten werfen (rekursiv, Fallback-sicher).
+	_enable_shadows(_mesh)
 	set_cell(start)
 	play_anim("idle")
 
@@ -110,7 +112,8 @@ func play_anim(which: String) -> void:
 	var a := _anim.get_animation(clip)
 	if a != null:
 		a.loop_mode = Animation.LOOP_LINEAR if bool(_LOOPING.get(which, false)) else Animation.LOOP_NONE
-	_anim.play(clip)
+	# Custom-Blend (0.18s) -> weiche Uebergaenge Idle<->Laufen<->Schuss statt hartem Cut.
+	_anim.play(clip, 0.18)
 
 
 ## One-Shot-Anims kehren nach Ende zu Idle zurueck. Loop-Anims feuern
@@ -140,16 +143,32 @@ func follow_path(world_points: Array) -> void:
 		return
 
 	moving = true
-	play_anim("walk")
+	play_anim("walk")   # durchgehend Laufen bis Pfadende (kein Flackern zwischen Segmenten)
 	var tween := create_tween()
+	# Konstantes Tempo, weiche Sine-Kurve, Figur schaut in Laufrichtung (nur Y-Achse).
+	var prev: Vector3 = position
 	for p in world_points:
 		var pt: Vector3 = p
-		tween.tween_property(self, "position", pt + Vector3(0, MODEL_Y_OFFSET, 0), 0.15)
+		var goal := pt + Vector3(0, MODEL_Y_OFFSET, 0)
+		# Blickrichtung vor dem Segment setzen (horizontale Differenz -> Yaw).
+		var flat := Vector2(goal.x - prev.x, goal.z - prev.z)
+		if flat.length() > 0.001:
+			var yaw := atan2(flat.x, flat.y)
+			tween.tween_callback(_face_yaw.bind(yaw))
+		tween.tween_property(self, "position", goal, 0.22) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		prev = goal
 	tween.finished.connect(func() -> void:
 		moving = false
 		play_anim("idle")
 		move_finished.emit()
 	)
+
+
+## Dreht nur das Mesh um die Y-Achse in Laufrichtung (Kampf-Logik/Node-Transform unberuehrt).
+func _face_yaw(yaw: float) -> void:
+	if _mesh != null:
+		_mesh.rotation.y = yaw
 
 
 # ------------------------------------------------------------------ intern
@@ -165,6 +184,16 @@ func _find_anim(n: Node) -> AnimationPlayer:
 		if found != null:
 			return found
 	return null
+
+
+## Setzt rekursiv cast_shadow ON an allen MeshInstance3D-Kindern (Fallback-Kapsel inklusive).
+func _enable_shadows(n: Node) -> void:
+	if n == null:
+		return
+	if n is GeometryInstance3D:
+		(n as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	for child in n.get_children():
+		_enable_shadows(child)
 
 
 ## Sucht rekursiv das erste Skeleton3D im Baum (null bei Fallback-Kapsel).

@@ -143,6 +143,17 @@ func _flat_mat(col: Color) -> StandardMaterial3D:
 	return mat
 
 
+## Wie _flat_mat, aber GESCHATTET (lit) — fuer den Boden-Fallback, damit auch
+## das reine Farbmaterial Licht/Schatten annimmt (T7 Art-Pass).
+func _lit_mat(col: Color) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = col
+	mat.roughness = 0.95
+	mat.metallic = 0.0
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
+	return mat
+
+
 # ================================================================== PHASE 6
 # Karten-Optik: stylisiert-lowpoly, kohaerent zu den Quaternius-Soldaten.
 # ALLES hier ist ADDITIV (T7) — nichts oben Bestehendes wird angefasst.
@@ -208,16 +219,19 @@ func _make_terrain_material(name: String) -> Material:
 	if path != "" and ResourceLoader.exists(path):
 		var m := StandardMaterial3D.new()
 		m.albedo_texture = load(path)
+		m.albedo_color = Color(0.72, 0.72, 0.72)   # Art-Pass: helle Textur daempfen (kein Ausbrennen/Mint)
 		m.uv1_scale = Vector3.ONE          # 1x1-Kachel-Box → 1 Textur je Kachel
-		m.roughness = 1.0
+		m.roughness = 0.95                 # matt/diffus → Sonne shadet weich
 		m.metallic = 0.0
 		m.texture_repeat = true
-		# Kohaerent flach + nie schwarz ohne Licht (T6: keine Schatten noetig).
-		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		# T7 Art-Pass: GESCHATTET, damit die DirectionalLight den Boden shadet und
+		# er Schatten EMPFAENGT. Braucht Licht+Ambient (Licht-Agent) → im Spiel hell.
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
 		return m
 	# T5-Fallback: flache Farbe (heutige Box-Optik) nur wenn PNG fehlt.
+	# Boden bleibt AUCH als Farbmaterial lit → nimmt Licht/Schatten an.
 	var col: Color = TERRAIN_COLOR.get(name, Color(0.4, 0.4, 0.4))
-	return _flat_mat(col)
+	return _lit_mat(col)
 
 
 ## Gebaeude-Material: "wall" → Backstein-PNG, "floor"/"wood" → Holzboden-PNG.
@@ -279,7 +293,7 @@ func nature_material(id: String) -> Material:
 		m.albedo_texture = load(path)
 		m.roughness = 1.0
 		m.metallic = 0.0
-		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL   # Art-Pass: geschattet statt Karton
 		_cache["mat:" + path] = m
 		return m
 	return _flat_mat(Color(0.24, 0.5, 0.22))
