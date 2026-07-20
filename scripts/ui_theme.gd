@@ -64,16 +64,30 @@ static func theme() -> Theme:
 	_theme = t
 	return t
 
+## Heading font. First hit wins, after that Godot's fallback.
+##
+## WHY NOT KENNEY ANY MORE: kenney_future_narrow (and kenney_mini) draw the "X"
+## like an H and the "Z" like a 2 — "BLITZ" read as "BLIT2", "FOX" as "FOH". The
+## glyphs are NOT missing (verified with fontTools), they are simply designed
+## that way. For proper names that is unusable. Black Ops One (SIL OFL, the
+## licence sits next to it as BlackOpsOne-OFL.txt) is a military stencil face,
+## renders X/Z correctly and fits BITTER HARVEST tonally.
+const TITLE_FONTS := [
+	"res://assets/font/BlackOpsOne-Regular.ttf",
+	"res://assets/font/kenney_future_narrow.ttf",
+]
+
 static func title_font() -> Font:
 	if _title_font != null:
 		return _title_font
-	var path := "res://assets/font/kenney_future_narrow.ttf"
-	if ResourceLoader.exists(path):
-		var f: FontFile = load(path)
-		if f != null:
-			f.fallbacks = [ThemeDB.fallback_font]
-			_title_font = f
-			return _title_font
+	for p in TITLE_FONTS:
+		var path := String(p)
+		if ResourceLoader.exists(path):
+			var f: FontFile = load(path)
+			if f != null:
+				f.fallbacks = [ThemeDB.fallback_font]
+				_title_font = f
+				return _title_font
 	_title_font = ThemeDB.fallback_font
 	return _title_font
 

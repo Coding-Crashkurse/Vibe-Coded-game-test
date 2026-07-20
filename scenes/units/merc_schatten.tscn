@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[node name="MercSchatten" type="Node3D"]
+metadata/merc_id = "schatten"
+metadata/model = "w_scifi"
+metadata/uniform = Color(0.12, 0.12, 0.15, 1)
+metadata/weapon_model = "pistol"
+metadata/weapon_id = "k45"

@@ -10,14 +10,14 @@ var begehbar: bool = true
 var move_type: Move = Move.WALK
 var cover: float = 0.0
 var blocks_sight: bool = false
-var surface: int = 0        # 0 Gras, 1 Holz, 2 Stein, 3 Wasser
+var surface: int = 0        # 0 grass, 1 wood, 2 stone, 3 water
 var weight: float = 1.0     # AStar weight_scale
 var flags: int = 0
 
 const FLAG_DESTRUCT := 1
 const FLAG_SPAWN := 2
 const FLAG_GOAL := 4
-const FLAG_KEEPOUT := 8   # keine blockierende Deko (Palme) auf dieser Zelle
+const FLAG_KEEPOUT := 8   # no blocking decoration (palm tree) on this cell
 
 
 static func make(k: Kind, ebene: int) -> Tac3DTile:

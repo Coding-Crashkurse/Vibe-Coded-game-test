@@ -22,7 +22,7 @@ func _ready() -> void:
 	v.add_theme_constant_override("separation", 14)
 	center.add_child(v)
 
-	var hd := UiTheme.header("SCHWIERIGKEIT WÄHLEN", 40)
+	var hd := UiTheme.header("CHOOSE DIFFICULTY", 40)
 	hd.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(hd)
 	v.add_child(UiTheme.vspace(10))
@@ -48,7 +48,7 @@ func _ready() -> void:
 		v.add_child(b)
 
 	v.add_child(UiTheme.vspace(12))
-	var back := UiTheme.btn("◂  ZURÜCK", func() -> void: _main().goto("title"), 15)
+	var back := UiTheme.btn("◂  BACK", func() -> void: _main().goto("title"), 15)
 	back.custom_minimum_size = Vector2(200, 0)
 	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	v.add_child(back)

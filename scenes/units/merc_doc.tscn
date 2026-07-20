@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[node name="MercDoc" type="Node3D"]
+metadata/merc_id = "doc"
+metadata/model = "m_adventurer"
+metadata/uniform = Color(0.15, 0.34, 0.21, 1)
+metadata/weapon_model = "pistol"
+metadata/weapon_id = "p9"

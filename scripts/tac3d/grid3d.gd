@@ -2,14 +2,14 @@ class_name Grid3D
 extends RefCounted
 
 const TILE_SIZE := 1.0
-const LEVEL_STEP := 3.0     # Meter je Höhenebene NUR fürs Rendering (cell_to_world)
+const LEVEL_STEP := 3.0     # metres per height level, ONLY for rendering (cell_to_world)
 
 var tiles: Dictionary = {}  # Vector3i -> Tac3DTile
 var size_x: int = 0
 var size_z: int = 0
 var min_level: int = 0
 var max_level: int = 0
-var _links: Dictionary = {} # Vector3i -> Array (symmetrische Ebenen-Übergänge)
+var _links: Dictionary = {} # Vector3i -> Array (symmetric level transitions)
 
 var _bounds_dirty := true
 
@@ -55,9 +55,9 @@ func add_link(a: Vector3i, b: Vector3i) -> void:
 	_links[b] = lb
 
 
-## True, wenn die Zelle Endpunkt eines Ebenen-Links ist (Bruecke/Rampe/Treppe).
-## Solche Zellen duerfen nie von blockierender Deko (Palmen) belegt werden —
-## sonst stirbt der einzige Uebergang zwischen zwei Ebenen.
+## True if the cell is an endpoint of a level link (bridge/ramp/stairs).
+## Such cells must never be occupied by blocking decoration (palm trees) —
+## otherwise the only transition between two levels dies.
 func has_link(c: Vector3i) -> bool:
 	return _links.has(c)
 
@@ -72,7 +72,7 @@ func neighbors(c: Vector3i) -> Array:
 	]
 	for d in dirs:
 		var dd: Vector3i = d
-		var n := c + dd  # gleiche ebene (c.y bleibt), KEINE Diagonalen
+		var n := c + dd  # same level (c.y unchanged), NO diagonals
 		if is_walkable(n):
 			result.append(n)
 	var links: Array = _links.get(c, [])
@@ -119,7 +119,7 @@ func bounds_world() -> AABB:
 			mx.x = max(mx.x, w.x)
 			mx.y = max(mx.y, w.y)
 			mx.z = max(mx.z, w.z)
-	# halbe Zelle Rand, damit die Zellen komplett innerhalb der AABB liegen
+	# half-cell margin so the cells lie completely inside the AABB
 	var half := Vector3(TILE_SIZE * 0.5, 0.0, TILE_SIZE * 0.5)
 	mn -= half
 	mx += half

@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[node name="MercIvan" type="Node3D"]
+metadata/merc_id = "ivan"
+metadata/model = "m_swat"
+metadata/uniform = Color(0.45, 0.13, 0.19, 1)
+metadata/weapon_model = "pistol"
+metadata/weapon_id = "k45"

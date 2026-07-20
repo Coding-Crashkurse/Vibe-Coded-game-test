@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[node name="MercNadel" type="Node3D"]
+metadata/merc_id = "nadel"
+metadata/model = "m_beach"
+metadata/uniform = Color(0.76, 0.57, 0.35, 1)
+metadata/weapon_model = "pistol"
+metadata/weapon_id = "p9"

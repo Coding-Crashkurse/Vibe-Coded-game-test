@@ -1,0 +1,548 @@
+{
+  "version": 1,
+  "_comment": "SPEC v5 §5.1 — single source of truth for every spoken line. Regeneration is manifest-driven: add a line entry, rerun the voice package. 'status' is 'present' (file exists on disk) or 'pending' (not generated yet). sfx.gd never depends on this file: a missing manifest falls back to the <char>_<kind>.mp3 naming convention.",
+  "target_lufs": -16.0,
+  "format": "mp3, 44.1 kHz, mono",
+  "voice_dir": "res://assets/sfx/voice/",
+  "archive_dir": "res://assets/sfx/voice/_archive/de/",
+  "kinds": {
+    "select": "unit selected — 2 variants",
+    "move_ack": "move order acknowledged — 2 variants; variant 1 lives in the legacy <char>_reply.mp3 files",
+    "quote": "hiring-screen signature line — 1, text verbatim from Db.MERCS[].quote",
+    "pain": "took a hit — 2 variants, wordless",
+    "death": "killed — 1, wordless",
+    "spot": "EXTRA kind, not in the spec list: enemy-sighting callout. Working content — keep it."
+  },
+  "variant_naming": "variant 1 = <char>_<kind>.mp3, variant 2+ = <char>_<kind>_<n>.mp3",
+  "characters": {
+    "nadel": {
+      "voice_id": "PSsnIVR2H6FKE86tvCnN",
+      "voice_design": "Wiry young male, fast clipped delivery with a nasal edge and a faint rasp. Nervous energy, always slightly ahead of the beat. Cheap talk, quick trigger.",
+      "lines": {
+        "select_1": {
+          "text": "Needle's up.",
+          "file": "nadel_select.mp3",
+          "status": "present"
+        },
+        "select_2": {
+          "text": "Yeah, yeah, I'm moving.",
+          "file": "nadel_select_2.mp3",
+          "status": "present"
+        },
+        "move_ack_1": {
+          "text": "On my way.",
+          "file": "nadel_reply.mp3",
+          "status": "present"
+        },
+        "move_ack_2": {
+          "text": "Fine. Going.",
+          "file": "nadel_move_ack_2.mp3",
+          "status": "present"
+        },
+        "quote": {
+          "text": "Cheap, fast, mostly sober.",
+          "file": "nadel_quote.mp3",
+          "status": "present"
+        },
+        "pain_1": {
+          "text": "Agh!",
+          "file": "nadel_pain.mp3",
+          "status": "present"
+        },
+        "pain_2": {
+          "text": "Nngh—",
+          "file": "nadel_pain_2.mp3",
+          "status": "present"
+        },
+        "death": {
+          "text": "Ah— no—",
+          "file": "nadel_death.mp3",
+          "status": "present"
+        },
+        "spot": {
+          "text": "Contact! I see one!",
+          "file": "nadel_spot.mp3",
+          "status": "present"
+        }
+      }
+    },
+    "blitz": {
+      "voice_id": "RxAHeDYKGSxCauuYgk5n",
+      "voice_design": "Young male, bright cocky tone at a quick tempo. Restless, city-fast phrasing, grins through the line. Loyal exactly as long as the pay clears.",
+      "lines": {
+        "select_1": {
+          "text": "Blitz. Ready.",
+          "file": "blitz_select.mp3",
+          "status": "present"
+        },
+        "select_2": {
+          "text": "Make it quick.",
+          "file": "blitz_select_2.mp3",
+          "status": "present"
+        },
+        "move_ack_1": {
+          "text": "Already there.",
+          "file": "blitz_reply.mp3",
+          "status": "present"
+        },
+        "move_ack_2": {
+          "text": "Watch me run.",
+          "file": "blitz_move_ack_2.mp3",
+          "status": "present"
+        },
+        "quote": {
+          "text": "Pay me before I run off again.",
+          "file": "blitz_quote.mp3",
+          "status": "present"
+        },
+        "pain_1": {
+          "text": "Agh!",
+          "file": "blitz_pain.mp3",
+          "status": "present"
+        },
+        "pain_2": {
+          "text": "Nngh—",
+          "file": "blitz_pain_2.mp3",
+          "status": "present"
+        },
+        "death": {
+          "text": "Not like— this—",
+          "file": "blitz_death.mp3",
+          "status": "present"
+        },
+        "spot": {
+          "text": "Got one! Over there!",
+          "file": "blitz_spot.mp3",
+          "status": "present"
+        }
+      }
+    },
+    "opa": {
+      "voice_id": "adA9nxd9VEhXdWatKzyZ",
+      "voice_design": "Elderly male, deep gravel, slow and dry. Unimpressed veteran who has outlived every officer he ever served. Never raises his voice.",
+      "lines": {
+        "select_1": {
+          "text": "Gramps, listening.",
+          "file": "opa_select.mp3",
+          "status": "present"
+        },
+        "select_2": {
+          "text": "Say it slowly.",
+          "file": "opa_select_2.mp3",
+          "status": "present"
+        },
+        "move_ack_1": {
+          "text": "Moving. Give me a minute.",
+          "file": "opa_reply.mp3",
+          "status": "present"
+        },
+        "move_ack_2": {
+          "text": "I know the way.",
+          "file": "opa_move_ack_2.mp3",
+          "status": "present"
+        },
+        "quote": {
+          "text": "I was losing wars back when you were still ammunition.",
+          "file": "opa_quote.mp3",
+          "status": "present"
+        },
+        "pain_1": {
+          "text": "Hnngh!",
+          "file": "opa_pain.mp3",
+          "status": "present"
+        },
+        "pain_2": {
+          "text": "Agh— damn it—",
+          "file": "opa_pain_2.mp3",
+          "status": "present"
+        },
+        "death": {
+          "text": "About... time...",
+          "file": "opa_death.mp3",
+          "status": "present"
+        },
+        "spot": {
+          "text": "Enemy. Left of the wall.",
+          "file": "opa_spot.mp3",
+          "status": "present"
+        }
+      }
+    },
+    "doc": {
+      "voice_id": "dCIH1GjK1QNWrjcSliPQ",
+      "voice_design": "Middle-aged male, precise clinical diction, calm and unhurried, faintly condescending. A surgeon's bedside manner with a mercenary's invoice.",
+      "lines": {
+        "select_1": {
+          "text": "Doc here.",
+          "file": "doc_select.mp3",
+          "status": "present"
+        },
+        "select_2": {
+          "text": "Who is bleeding?",
+          "file": "doc_select_2.mp3",
+          "status": "present"
+        },
+        "move_ack_1": {
+          "text": "Proceeding.",
+          "file": "doc_reply.mp3",
+          "status": "present"
+        },
+        "move_ack_2": {
+          "text": "Noted. Moving.",
+          "file": "doc_move_ack_2.mp3",
+          "status": "present"
+        },
+        "quote": {
+          "text": "First I patch you up. Then the bill.",
+          "file": "doc_quote.mp3",
+          "status": "present"
+        },
+        "pain_1": {
+          "text": "Agh!",
+          "file": "doc_pain.mp3",
+          "status": "present"
+        },
+        "pain_2": {
+          "text": "Nngh— that is bad—",
+          "file": "doc_pain_2.mp3",
+          "status": "present"
+        },
+        "death": {
+          "text": "Inoperable...",
+          "file": "doc_death.mp3",
+          "status": "present"
+        },
+        "spot": {
+          "text": "Hostile sighted.",
+          "file": "doc_spot.mp3",
+          "status": "present"
+        }
+      }
+    },
+    "walross": {
+      "voice_id": "y8Nm6Ze2b3buKzSGxEBe",
+      "voice_design": "Large male, deep chest voice, slow, audible breathing between phrases. Good-natured bruiser who takes point because nobody else will.",
+      "lines": {
+        "select_1": {
+          "text": "Walrus. Up front.",
+          "file": "walross_select.mp3",
+          "status": "present"
+        },
+        "select_2": {
+          "text": "Big and ready.",
+          "file": "walross_select_2.mp3",
+          "status": "present"
+        },
+        "move_ack_1": {
+          "text": "I'll take point.",
+          "file": "walross_reply.mp3",
+          "status": "present"
+        },
+        "move_ack_2": {
+          "text": "Heavy feet, coming through.",
+          "file": "walross_move_ack_2.mp3",
+          "status": "present"
+        },
+        "quote": {
+          "text": "I'll take point. You're paying for the ammo.",
+          "file": "walross_quote.mp3",
+          "status": "present"
+        },
+        "pain_1": {
+          "text": "Urgh!",
+          "file": "walross_pain.mp3",
+          "status": "present"
+        },
+        "pain_2": {
+          "text": "Hnngh—",
+          "file": "walross_pain_2.mp3",
+          "status": "present"
+        },
+        "death": {
+          "text": "Hhh... down...",
+          "file": "walross_death.mp3",
+          "status": "present"
+        },
+        "spot": {
+          "text": "Enemy! I see him!",
+          "file": "walross_spot.mp3",
+          "status": "present"
+        }
+      }
+    },
+    "granate": {
+      "voice_id": "cN35VELonbUlv8WwNAdy",
+      "voice_design": "Adult female, loud bright punchy delivery, grinning through every line. Reckless enthusiasm, short explosive phrasing.",
+      "lines": {
+        "select_1": {
+          "text": "Frag, ready to work.",
+          "file": "granate_select.mp3",
+          "status": "present"
+        },
+        "select_2": {
+          "text": "Something needs blowing up?",
+          "file": "granate_select_2.mp3",
+          "status": "present"
+        },
+        "move_ack_1": {
+          "text": "On it!",
+          "file": "granate_reply.mp3",
+          "status": "present"
+        },
+        "move_ack_2": {
+          "text": "Stand back, moving!",
+          "file": "granate_move_ack_2.mp3",
+          "status": "present"
+        },
+        "quote": {
+          "text": "If it got loud, that was me.",
+          "file": "granate_quote.mp3",
+          "status": "present"
+        },
+        "pain_1": {
+          "text": "Agh!",
+          "file": "granate_pain.mp3",
+          "status": "present"
+        },
+        "pain_2": {
+          "text": "Nngh—",
+          "file": "granate_pain_2.mp3",
+          "status": "present"
+        },
+        "death": {
+          "text": "Ah— dammit—",
+          "file": "granate_death.mp3",
+          "status": "present"
+        },
+        "spot": {
+          "text": "Target! Right there!",
+          "file": "granate_spot.mp3",
+          "status": "present"
+        }
+      }
+    },
+    "schatten": {
+      "voice_id": "bpO5Ch3m6YsTDejH7OKN",
+      "voice_design": "Adult female, low quiet controlled near-whisper, minimal emotion, perfect articulation. Never louder than she needs to be.",
+      "lines": {
+        "select_1": {
+          "text": "Shade.",
+          "file": "schatten_select.mp3",
+          "status": "present"
+        },
+        "select_2": {
+          "text": "I'm in position.",
+          "file": "schatten_select_2.mp3",
+          "status": "present"
+        },
+        "move_ack_1": {
+          "text": "Moving. Quietly.",
+          "file": "schatten_reply.mp3",
+          "status": "present"
+        },
+        "move_ack_2": {
+          "text": "Understood.",
+          "file": "schatten_move_ack_2.mp3",
+          "status": "present"
+        },
+        "quote": {
+          "text": "You won't hear me. Neither will they.",
+          "file": "schatten_quote.mp3",
+          "status": "present"
+        },
+        "pain_1": {
+          "text": "Hn!",
+          "file": "schatten_pain.mp3",
+          "status": "present"
+        },
+        "pain_2": {
+          "text": "Nngh—",
+          "file": "schatten_pain_2.mp3",
+          "status": "present"
+        },
+        "death": {
+          "text": "...seen.",
+          "file": "schatten_death.mp3",
+          "status": "present"
+        },
+        "spot": {
+          "text": "One hostile. I see him.",
+          "file": "schatten_spot.mp3",
+          "status": "present"
+        }
+      }
+    },
+    "ivan": {
+      "voice_id": "Es1gc3sHSYFOnXdxZvjB",
+      "voice_design": "Adult male, deep Russian accent, terse and gruff, unhurried. Speaks little, means all of it. Borrowed from colder wars.",
+      "lines": {
+        "select_1": {
+          "text": "Ivan.",
+          "file": "ivan_select.mp3",
+          "status": "present"
+        },
+        "select_2": {
+          "text": "Da. Speak.",
+          "file": "ivan_select_2.mp3",
+          "status": "present"
+        },
+        "move_ack_1": {
+          "text": "Ivan goes.",
+          "file": "ivan_reply.mp3",
+          "status": "present"
+        },
+        "move_ack_2": {
+          "text": "Nu davai.",
+          "file": "ivan_move_ack_2.mp3",
+          "status": "present"
+        },
+        "quote": {
+          "text": "Nu davai. Ivan handles this.",
+          "file": "ivan_quote.mp3",
+          "status": "present"
+        },
+        "pain_1": {
+          "text": "Agh!",
+          "file": "ivan_pain.mp3",
+          "status": "present"
+        },
+        "pain_2": {
+          "text": "Hnngh—",
+          "file": "ivan_pain_2.mp3",
+          "status": "present"
+        },
+        "death": {
+          "text": "Hhh... nyet...",
+          "file": "ivan_death.mp3",
+          "status": "present"
+        },
+        "spot": {
+          "text": "Enemy. Ivan sees him.",
+          "file": "ivan_spot.mp3",
+          "status": "present"
+        }
+      }
+    },
+    "fuchs": {
+      "voice_id": "rafA1DQTM6UsKwjzD4xE",
+      "voice_design": "Adult male, cool clipped precision, arrogant calm, measured pace. The most expensive trigger on the roster and entirely aware of it.",
+      "lines": {
+        "select_1": {
+          "text": "Fox. Ready.",
+          "file": "fuchs_select.mp3",
+          "status": "present"
+        },
+        "select_2": {
+          "text": "Give me a target.",
+          "file": "fuchs_select_2.mp3",
+          "status": "present"
+        },
+        "move_ack_1": {
+          "text": "Repositioning.",
+          "file": "fuchs_reply.mp3",
+          "status": "present"
+        },
+        "move_ack_2": {
+          "text": "As you wish.",
+          "file": "fuchs_move_ack_2.mp3",
+          "status": "present"
+        },
+        "quote": {
+          "text": "One shot, one bill.",
+          "file": "fuchs_quote.mp3",
+          "status": "present"
+        },
+        "pain_1": {
+          "text": "Agh!",
+          "file": "fuchs_pain.mp3",
+          "status": "present"
+        },
+        "pain_2": {
+          "text": "Nngh—",
+          "file": "fuchs_pain_2.mp3",
+          "status": "present"
+        },
+        "death": {
+          "text": "Miscalculated...",
+          "file": "fuchs_death.mp3",
+          "status": "present"
+        },
+        "spot": {
+          "text": "Hostile. I have him.",
+          "file": "fuchs_spot.mp3",
+          "status": "present"
+        }
+      }
+    },
+    "tobias": {
+      "voice_id": "",
+      "voice_ref": "opa",
+      "voice_design": "Old fisherman, gravelly warm voice, slow, tired but unbroken. Village elder of Rookhaven. Borrows the 'opa' voice — no separate generation needed.",
+      "_note": "Internal unit id stays 'otto' in Db/Game so the test harness keeps working; the player only ever sees 'Tobias Rook'. info_1..3 texts are verbatim from Db.TOBIAS_DIALOG, rescue from Db.OTTO.quote.",
+      "lines": {
+        "rescue": {
+          "text": "Took you long enough.",
+          "file": "tobias_rescue.mp3",
+          "status": "present"
+        },
+        "info_1": {
+          "text": "Helix owns this island now. The mines, the barracks, that manor out on the rock.",
+          "file": "tobias_1.mp3",
+          "status": "present"
+        },
+        "info_2": {
+          "text": "My daughter. They took her — because of her research. I don't know where.",
+          "file": "tobias_2.mp3",
+          "status": "present"
+        },
+        "info_3": {
+          "text": "Widow's Vein and Stoneglint. Diamonds. That's what pays for all of it. Whoever holds the mines holds the island.",
+          "file": "tobias_3.mp3",
+          "status": "present"
+        },
+        "base_welcome": {
+          "text": "It isn't much. But they never look for anyone down here.",
+          "file": "tobias_base_welcome.mp3",
+          "status": "present"
+        },
+        "battle_1": {
+          "text": "Give me a rifle. I'm not hiding again.",
+          "file": "tobias_battle_1.mp3",
+          "status": "present"
+        },
+        "battle_2": {
+          "text": "That's for my daughter.",
+          "file": "tobias_battle_2.mp3",
+          "status": "present"
+        }
+      }
+    },
+    "narrator": {
+      "voice_id": "onwK4e9ZLuTAKqWW03F9",
+      "voice_design": "Deep weathered war-documentary narrator, measured. Unhurried, no theatrics — states facts that have already gone badly.",
+      "lines": {
+        "intro": {
+          "text": "Ashveil Isle. A fishing island with two diamond mines and one owner. Helix Bioscience took the village of Rookhaven a month ago. Your contact is still down there — if he's still breathing. Insert at the landing zone. Get him out.",
+          "file": "narrator_intro.mp3",
+          "status": "present"
+        },
+        "demo_end": {
+          "text": "Rookhaven is free. Maren Rook is out there somewhere. And the mines keep digging — for Helix. — To be continued.",
+          "file": "narrator_demo_end.mp3",
+          "status": "present"
+        }
+      },
+      "voice_note": "ElevenLabs premade 'Daniel' — no custom slot needed."
+    }
+  },
+  "retired": {
+    "_comment": "SPEC v5 §3.2 cuts the warlord boss fight from the demo. The German clips are archived under archive_dir; sfx.gd no longer preloads these keys and degrades to a silent no-op if a stale caller still asks for them.",
+    "files": [
+      "vargo_1.mp3",
+      "vargo_2.mp3",
+      "vargo_3.mp3",
+      "vargo_kampf.mp3",
+      "ivan_dialog.mp3"
+    ]
+  }
+}

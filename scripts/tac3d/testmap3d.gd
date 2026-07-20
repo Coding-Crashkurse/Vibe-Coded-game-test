@@ -5,8 +5,8 @@ extends RefCounted
 static func build() -> Dictionary:
 	var grid := Grid3D.new()
 
-	# --- Ebene 0: 16 breit (x=0..15), 12 tief (z=0..11) ---
-	# Muster je Reihe: x0..6 GROUND, x7 WATER_SHALLOW, x8 WATER_DEEP, x9..15 GROUND
+	# --- Level 0: 16 wide (x=0..15), 12 deep (z=0..11) ---
+	# Pattern per row: x0..6 GROUND, x7 WATER_SHALLOW, x8 WATER_DEEP, x9..15 GROUND
 	for z in range(12):
 		for x in range(16):
 			var k: Tac3DTile.Kind
@@ -18,7 +18,7 @@ static func build() -> Dictionary:
 				k = Tac3DTile.Kind.GROUND
 			grid.set_tile(Vector3i(x, 0, z), Tac3DTile.make(k, 0))
 
-	# --- Ebene 1: BRIDGE-Deck ---
+	# --- Level 1: BRIDGE deck ---
 	var bridge_cells := [
 		Vector3i(6, 1, 5),
 		Vector3i(7, 1, 5),
@@ -29,7 +29,7 @@ static func build() -> Dictionary:
 		var bc: Vector3i = c
 		grid.set_tile(bc, Tac3DTile.make(Tac3DTile.Kind.BRIDGE, 1))
 
-	# --- Ebene 1: ROOF-Podest ---
+	# --- Level 1: ROOF platform ---
 	var podium_cells := [
 		Vector3i(13, 1, 3),
 		Vector3i(13, 1, 4),
@@ -40,10 +40,10 @@ static func build() -> Dictionary:
 		var pc: Vector3i = c
 		grid.set_tile(pc, Tac3DTile.make(Tac3DTile.Kind.ROOF, 1))
 
-	# --- Links (symmetrische Ebenen-Uebergaenge) ---
-	grid.add_link(Vector3i(6, 1, 5), Vector3i(5, 0, 5))    # Bruecke West aufs Westufer
-	grid.add_link(Vector3i(9, 1, 5), Vector3i(10, 0, 5))   # Bruecke Ost aufs Ostufer
-	grid.add_link(Vector3i(13, 1, 4), Vector3i(12, 0, 4))  # Podest-Rampe vom Ostufer
+	# --- Links (symmetric level transitions) ---
+	grid.add_link(Vector3i(6, 1, 5), Vector3i(5, 0, 5))    # bridge west onto the west bank
+	grid.add_link(Vector3i(9, 1, 5), Vector3i(10, 0, 5))   # bridge east onto the east bank
+	grid.add_link(Vector3i(13, 1, 4), Vector3i(12, 0, 4))  # platform ramp from the east bank
 
 	return {
 		"grid": grid,

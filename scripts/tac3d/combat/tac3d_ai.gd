@@ -1,22 +1,22 @@
 class_name Tac3DAI
 extends RefCounted
-# Gegner-KI in 3D. 1:1-Port von tactical.gd:ai_act (Zeilen 1110-1189).
-# Alle Distanzen laufen FLACH auf (x, z) via Tac3DVision.flat (spec §3/§7.2).
-# Callbacks/Zustand liegen im Orchestrator (Tac3DCombat).
+# Enemy AI in 3D. 1:1 port of tactical.gd:ai_act (lines 1110-1189).
+# All distances run FLAT on (x, z) via Tac3DVision.flat (spec §3/§7.2).
+# Callbacks/state live in the orchestrator (Tac3DCombat).
 #
-# GDScript-Falle §7.6: `ctl` MUSS UNTYPED bleiben (Tac3DAI <-> Tac3DCombat
-# waeren sonst ein Zyklus -> "Could not resolve class"). Deshalb sind alle
-# ctl.*-Rueckgaben Variant und werden an typisierte Vars (var p: Array = ...)
-# gebunden (Falle §7.1).
+# GDScript trap §7.6: `ctl` MUST stay UNTYPED (Tac3DAI <-> Tac3DCombat would
+# otherwise be a cycle -> "Could not resolve class"). That is why all ctl.*
+# return values are Variant and get bound to typed vars (var p: Array = ...)
+# (trap §7.1).
 
-var ctl                 # Tac3DCombat-Orchestrator — UNTYPED (Zyklus-Falle)
+var ctl                 # Tac3DCombat orchestrator — UNTYPED (cycle trap)
 
 
 func setup(controller) -> void:
 	ctl = controller
 
 
-# Sichtbare, lebende Soeldner aus Sicht von e (Port _enemy_visible_mercs).
+# Visible, living mercs from e's point of view (port of _enemy_visible_mercs).
 func _visible_mercs(e: Tac3DUnit) -> Array:
 	var out: Array = []
 	for m in ctl.mercs:
@@ -26,8 +26,8 @@ func _visible_mercs(e: Tac3DUnit) -> Array:
 	return out
 
 
-# Wachposten-Leine (Port tactical.gd:310-315): Boss klebt (2), Eliten am
-# Anwesen (5), Miliz jagt frei (9999). Flach.
+# Sentry leash (port of tactical.gd:310-315): boss sticks (2), elites at the
+# estate (5), militia hunts freely (9999). Flat.
 func leash_for(e: Tac3DUnit) -> float:
 	if e == ctl.boss:
 		return 2.0
@@ -36,8 +36,8 @@ func leash_for(e: Tac3DUnit) -> float:
 	return 9999.0
 
 
-# Zielwahl-Score (Port tactical.gd:1155-1159): Trefferchance + Verwundung
-# bevorzugen - flache Distanz. Bester lebender, sichtbarer Merc.
+# Target-selection score (port of tactical.gd:1155-1159): prefer hit chance +
+# wounding - flat distance. Best living, visible merc.
 func best_target(e: Tac3DUnit, vism: Array) -> Tac3DUnit:
 	var best: Tac3DUnit = null
 	var best_score := -999.0
@@ -52,8 +52,8 @@ func best_target(e: Tac3DUnit, vism: Array) -> Tac3DUnit:
 	return best
 
 
-# Coroutine — Port ai_act (tactical.gd:1110-1189). Idle-Wandern, Laerm-
-# Untersuchung mit Leine, Zielwahl, Reposition bei ch<22, Schuss.
+# Coroutine — port of ai_act (tactical.gd:1110-1189). Idle wandering, noise
+# investigation with leash, target selection, reposition at ch<22, shot.
 func act(e: Tac3DUnit) -> void:
 	if not e.alive or ctl.battle_over:
 		return
@@ -61,7 +61,7 @@ func act(e: Tac3DUnit) -> void:
 	if not vism.is_empty():
 		e.data["alerted"] = true
 		ctl.alert_enemies(vism[0].cell, e.cell, 6.0)
-	# --- Nicht alarmiert: gelegentlich ziellos wandern, dann fertig ---
+	# --- Not alerted: occasionally wander aimlessly, then done ---
 	if not bool(e.data.get("alerted", false)):
 		if randf() < 0.45:
 			for attempt in 8:
@@ -69,7 +69,7 @@ func act(e: Tac3DUnit) -> void:
 				if ctl.grid.is_walkable(c) and not ctl.occupied.has(c):
 					var p: Array = ctl.path_for(e, c)
 					if p.size() > 1:
-						# Integer-Division bewahren (e.ap ist int)
+						# preserve integer division (e.ap is int)
 						var pref: Array = ctl.prefix_for_ap(p, e.ap / 2)
 						await ctl.do_move(e, pref)
 						break
@@ -77,12 +77,12 @@ func act(e: Tac3DUnit) -> void:
 	if e.seen and not ctl.fast:
 		await ctl.dl(0.25)
 	var w: Dictionary = Db.weapon(e.data["weapon"])
-	# --- Alarmiert, aber niemand in Sicht: Geraeuschquelle untersuchen ---
+	# --- Alerted, but nobody in sight: investigate the noise source ---
 	if vism.is_empty():
 		var tgt: Vector3i = ctl.noise_at
 		if ctl.grid.get_tile(tgt) == null:
 			return
-		# Wachposten halten Stellung statt der Geraeuschquelle hinterherzurennen
+		# sentries hold position instead of chasing after the noise source
 		if Tac3DVision.flat(tgt).distance_to(Tac3DVision.flat(e.home)) > leash_for(e):
 			return
 		if Tac3DVision.flat(e.cell).distance_to(Tac3DVision.flat(tgt)) <= 2.0:
@@ -95,7 +95,7 @@ func act(e: Tac3DUnit) -> void:
 			var pref: Array = ctl.prefix_for_ap(p, maxi(2, e.ap - reserve))
 			await ctl.do_move(e, pref)
 		vism = _visible_mercs(e)
-	# --- Feuer-Schleife: zielen, ggf. reposition, schiessen ---
+	# --- Fire loop: aim, reposition if needed, shoot ---
 	var moved := false
 	var guard := 0
 	while not ctl.battle_over and e.alive and e.ap >= int(w["ap"]) and guard < 12:
@@ -112,7 +112,7 @@ func act(e: Tac3DUnit) -> void:
 				continue
 			break
 		var ch: int = ctl.hit_chance(e, best)
-		# Reposition bei schlechter Chance (nicht Boss, einmal pro Zug)
+		# reposition on a poor chance (not the boss, once per turn)
 		if ch < 22 and not moved and e.ap >= int(w["ap"]) + 4 and e != ctl.boss:
 			var bestc := Vector3i(-99, 0, -99)
 			var bestv := float(ch)

@@ -1,8 +1,8 @@
 class_name Pathfinder3D
 extends RefCounted
 
-# AStar3D-Wrapper (Fix S9: FLACHE Kostenmetrik, y immer 0).
-# astar MUSS public bleiben — der Harness ruft astar.are_points_connected() direkt.
+# AStar3D wrapper (fix S9: FLAT cost metric, y always 0).
+# astar MUST stay public — the harness calls astar.are_points_connected() directly.
 
 var astar := AStar3D.new()
 var grid: Grid3D
@@ -18,7 +18,7 @@ func build(g: Grid3D) -> void:
 	if grid == null:
 		return
 
-	# 1) Punkte: nur begehbare Zellen, fortlaufende IDs.
+	# 1) Points: walkable cells only, consecutive IDs.
 	var next_id := 0
 	for k in grid.all_cells():
 		var c: Vector3i = k
@@ -29,13 +29,13 @@ func build(g: Grid3D) -> void:
 			continue
 		var id := next_id
 		next_id += 1
-		# Fix S9: Position ist FLACH (y = 0), Renderhöhe wird NICHT eingerechnet.
-		# Ebenenwechsel per Link kostet so ~1 Distanz-Einheit statt LEVEL_STEP.
+		# Fix S9: position is FLAT (y = 0), render height is NOT factored in.
+		# A level change via link thus costs ~1 distance unit instead of LEVEL_STEP.
 		astar.add_point(id, Vector3(c.x + 0.5, 0.0, c.z + 0.5), tile.weight)
 		_id_of[c] = id
 		_cell_of[id] = c
 
-	# 2) Kanten: bidirektional zu allen begehbaren Nachbarn (inkl. Links).
+	# 2) Edges: bidirectional to all walkable neighbours (including links).
 	for k in _id_of.keys():
 		var c2: Vector3i = k
 		var cid: int = _id_of[c2]
@@ -92,7 +92,7 @@ func path_cost(from: Vector3i, to: Vector3i) -> float:
 		return -1.0
 	if grid == null:
 		return -1.0
-	# Distanzsumme entlang der Zellen × weight des Zielschritts (flache Metrik, y=0).
+	# Sum of distances along the cells × weight of the destination step (flat metric, y=0).
 	var cost := 0.0
 	for i in range(1, cells.size()):
 		var prev: Vector3i = cells[i - 1]

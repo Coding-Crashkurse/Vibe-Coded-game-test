@@ -1,13 +1,15 @@
 class_name MapGen
 extends RefCounted
-## Erzeugt Sektor 43 »Silberquell« (40×28) im JA1-Look:
-## Wände werden als DÜNNE Striche in den Boden gebacken (Läufe/Ecken/T-Stücke),
-## Innenräume mit Holzdielen sichtbar, Türen als Holzschwellen, Fenster als Glasstriche.
+## Generates sector 43 "Silberquell" (40×28) in the JA1 look:
+## walls are baked into the ground as THIN strokes (runs/corners/T-pieces),
+## interiors visible with wooden planks, doors as wooden thresholds, windows as
+## glass strokes.
 ##
-## Legende:
-##  . Gras   , Erdweg   ~ Wasser   T Baum   t Busch   r Fels
-##  # Hauswand (Creme-Mauerwerk)   M Anwesen-Mauer (Stein)   W Fenster   D Tür
-##  w Holzboden   s Steinboden   C Teppich   c Kiste (lootbar, zerstörbar)   S Sandsack   O Brunnen
+## Legend:
+##  . grass   , dirt path   ~ water   T tree   t bush   r rock
+##  # house wall (cream masonry)   M estate wall (stone)   W window   D door
+##  w wooden floor   s stone floor   C carpet   c crate (lootable, destructible)
+##  S sandbag   O well
 
 const W := 40
 const H := 28
@@ -62,7 +64,7 @@ const FURNITURE := [
 	{"name": "stove", "cell": Vector2i(11, 14)},
 ]
 
-## diff: "all" = immer · "normal" = ab NORMAL · "hard" = nur SCHWER
+## diff: "all" = always · "normal" = from NORMAL upwards · "hard" = HARD only
 const ENEMY_SPAWNS := [
 	{"cell": Vector2i(10, 15), "type": "miliz_p9", "diff": "all"},
 	{"cell": Vector2i(17, 12), "type": "miliz_p9", "diff": "all"},
@@ -83,7 +85,7 @@ const ENEMY_SPAWNS := [
 	{"cell": Vector2i(36, 12), "type": "miliz_flinte", "diff": "hard"},
 ]
 
-# Landezone: neutrale Südwest-Wiese hinter dem Waldriegel
+# Landing zone: neutral south-west meadow behind the forest barrier
 const MERC_SPAWNS := [Vector2i(3, 24), Vector2i(4, 24), Vector2i(3, 25), Vector2i(4, 25)]
 const BOSS_HOME := Vector2i(32, 2)
 
@@ -120,7 +122,7 @@ static func generate(rng_seed: int, difficulty: String = "normal") -> Dictionary
 	var sight: Array[bool] = []
 	var cover: Array[float] = []
 	var destruct: Array[bool] = []
-	var surface: Array[int] = []   # 0 Gras/Erde · 1 Holz · 2 Stein (für Schrittgeräusche)
+	var surface: Array[int] = []   # 0 grass/earth · 1 wood · 2 stone (for footstep sounds)
 	walk.resize(W * H)
 	sight.resize(W * H)
 	cover.resize(W * H)
@@ -213,7 +215,7 @@ static func generate(rng_seed: int, difficulty: String = "normal") -> Dictionary
 				surface[i] = 0
 			_blit(ground_img, src_cache, A, ground, x, y)
 
-	# JA1-Look: dünne Wände, Fenster, Türschwellen in den Boden backen
+	# JA1 look: bake thin walls, windows and door thresholds into the ground
 	for y in H:
 		for x in W:
 			var ch := char_at(x, y)
@@ -224,7 +226,7 @@ static func generate(rng_seed: int, difficulty: String = "normal") -> Dictionary
 			elif ch == "D":
 				_bake_door(ground_img, x, y)
 
-	# Möbel
+	# furniture
 	for f in FURNITURE:
 		var c: Vector2i = f["cell"]
 		var i2 := idx(c)
@@ -232,7 +234,7 @@ static func generate(rng_seed: int, difficulty: String = "normal") -> Dictionary
 		cover[i2] = 0.25
 		props.append({"name": f["name"], "cell": c, "rot": 0.0, "mod": Color(1, 1, 1), "scale": 1.0})
 
-	# Gegner nach Schwierigkeit
+	# enemies by difficulty
 	var spawns: Array = []
 	for es in ENEMY_SPAWNS:
 		var tag := String(es["diff"])
@@ -242,7 +244,7 @@ static func generate(rng_seed: int, difficulty: String = "normal") -> Dictionary
 			spawns.append(es)
 		elif tag == "hard" and difficulty == "schwer":
 			spawns.append(es)
-	# LEICHT: keine Elitewachen im Einstiegssektor — normale Miliz übernimmt die Posten
+	# EASY: no elite guards in the starting sector — regular militia take the posts
 	if difficulty == "leicht":
 		var downgrade := {"elite": "miliz_k45", "elite_flinte": "miliz_flinte"}
 		var eased: Array = []
@@ -290,7 +292,7 @@ static func _blit(dst: Image, cache: Dictionary, A: Node, name: String, x: int, 
 	var src: Image = cache[name]
 	dst.blit_rect(src, Rect2i(0, 0, TILE, TILE), Vector2i(x * TILE, y * TILE))
 
-## Dünner Wandstrich mit Verbindungsarmen (Läufe, Ecken, T-Stücke)
+## Thin wall stroke with connecting arms (runs, corners, T-pieces)
 static func _bake_wall(img: Image, x: int, y: int, stone: bool) -> void:
 	var outer := Color(0.30, 0.26, 0.18)
 	var inner := Color(0.92, 0.88, 0.78)
@@ -319,7 +321,7 @@ static func _bake_wall(img: Image, x: int, y: int, stone: bool) -> void:
 			img.fill_rect(Rect2i(px + h0, py, t, 32 + t / 2), col)
 		if d:
 			img.fill_rect(Rect2i(px + h0, py + h0, t, TILE - h0), col)
-	# 3/4-Look: sichtbare Wandfront nach Süden + weicher Bodenschatten
+	# 3/4 look: visible wall face towards the south + soft ground shadow
 	if not _wall_like(char_at(x, y + 1)):
 		var fl := px if l else px + 22
 		var fr := (px + TILE) if r else px + 42
@@ -345,7 +347,7 @@ static func _bake_window(img: Image, x: int, y: int) -> void:
 		img.fill_rect(Rect2i(px + 27, py + 2, 10, TILE - 4), frame)
 		img.fill_rect(Rect2i(px + 29, py + 4, 6, TILE - 8), glass)
 
-## Tür: Holzschwelle in der Wandlücke (begehbar)
+## Door: wooden threshold in the wall gap (walkable)
 static func _bake_door(img: Image, x: int, y: int) -> void:
 	var px := x * TILE
 	var py := y * TILE

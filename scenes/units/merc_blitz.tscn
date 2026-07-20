@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[node name="MercBlitz" type="Node3D"]
+metadata/merc_id = "blitz"
+metadata/model = "m_punk"
+metadata/uniform = Color(0.16, 0.24, 0.47, 1)
+metadata/weapon_model = "pistol"
+metadata/weapon_id = "p9"

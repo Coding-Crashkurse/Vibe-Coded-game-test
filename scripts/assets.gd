@@ -1,6 +1,6 @@
 extends Node
-## Assets — lädt Kenney-Texturen (CC0) und erzeugt prozedurale Fallbacks,
-## Portraits und Effekt-Texturen. Alles wird gecacht.
+## Assets — loads Kenney textures (CC0) and generates procedural fallbacks,
+## portraits and effect textures. Everything is cached.
 
 var _cache := {}
 
@@ -18,7 +18,7 @@ func tex(n: String) -> Texture2D:
 	_cache[n] = t
 	return t
 
-## Seitenansicht-Baum im JA1-3/4-Look: Bodenschatten + Stamm + Krone (64×96)
+## Side-view tree in the JA1 3/4 look: ground shadow + trunk + crown (64×96)
 func tree_side(variant: int) -> Texture2D:
 	var key := "tree_side_%d" % variant
 	if _cache.has(key):
@@ -50,7 +50,7 @@ func _ellipse(img: Image, cx: int, cy: int, rx: int, ry: int, col: Color) -> voi
 			if dx * dx + dy * dy <= 1.0:
 				img.set_pixel(x, y, col)
 
-## Item-Icon (40×40) für Inventar & Aktionsleiste
+## Item icon (40×40) for the inventory & action bar
 func item_icon(id: String) -> Texture2D:
 	var key := "icon_" + id
 	if _cache.has(key):
@@ -77,6 +77,24 @@ func item_icon(id: String) -> Texture2D:
 			img.fill_rect(Rect2i(12, 20, 9, 4), wood)
 			if id == "drachenmaul":
 				img.fill_rect(Rect2i(2, 15, 31, 1), Color(0.82, 0.66, 0.2))
+		"svd":
+			# Dragunov silhouette: long barrel, telescopic sight, wooden skeleton stock
+			img.fill_rect(Rect2i(0, 18, 4, 4), dark)            # flash hider
+			img.fill_rect(Rect2i(4, 19, 10, 2), steel)          # barrel
+			img.fill_rect(Rect2i(14, 18, 8, 4), wood)           # handguard
+			img.fill_rect(Rect2i(14, 18, 8, 1), dark)
+			img.fill_rect(Rect2i(22, 17, 8, 6), steel)          # receiver
+			img.fill_rect(Rect2i(22, 17, 8, 1), dark)
+			img.fill_rect(Rect2i(17, 12, 12, 3), dark)          # telescopic sight
+			img.fill_rect(Rect2i(15, 11, 2, 5), steel)          # eyepiece
+			img.fill_rect(Rect2i(29, 11, 2, 5), steel)          # objective lens
+			img.fill_rect(Rect2i(23, 15, 2, 2), dark)           # scope mount
+			img.fill_rect(Rect2i(24, 23, 4, 5), dark)           # magazine
+			img.fill_rect(Rect2i(25, 27, 4, 2), dark)           #  (slightly curved)
+			img.fill_rect(Rect2i(30, 23, 3, 6), wood)           # pistol grip
+			img.fill_rect(Rect2i(30, 17, 10, 3), wood)          # stock upper rail
+			img.fill_rect(Rect2i(33, 23, 5, 2), wood)           # stock lower rail
+			img.fill_rect(Rect2i(37, 17, 3, 12), wood)          # butt plate
 		"mag_9mm":
 			img.fill_rect(Rect2i(15, 8, 10, 25), steel)
 			img.fill_rect(Rect2i(15, 8, 10, 3), dark)
@@ -91,6 +109,11 @@ func item_icon(id: String) -> Texture2D:
 			for k in 3:
 				img.fill_rect(Rect2i(11 + k * 7, 17, 5, 9), Color(0.85, 0.25, 0.18))
 				img.fill_rect(Rect2i(11 + k * 7, 24, 5, 3), Color(0.8, 0.65, 0.25))
+		"mag_762":
+			img.fill_rect(Rect2i(14, 8, 9, 12), steel)
+			img.fill_rect(Rect2i(16, 20, 9, 12), steel)   # curvature suggested
+			img.fill_rect(Rect2i(14, 8, 9, 3), dark)
+			img.fill_rect(Rect2i(16, 4, 5, 4), Color(0.75, 0.55, 0.25))
 		"granate":
 			_fill_circle(img, 18, 23, 10, Color(0.19, 0.29, 0.15))
 			_fill_circle(img, 15, 20, 4, Color(0.28, 0.4, 0.22))
@@ -108,7 +131,7 @@ func item_icon(id: String) -> Texture2D:
 	_cache[key] = t
 	return t
 
-## Weiche Kreis-Textur (Mündungsfeuer, Explosion, Radius-Anzeigen)
+## Soft circle texture (muzzle flash, explosion, radius indicators)
 func circle(radius: int, col: Color, soft: bool = true) -> Texture2D:
 	var key := "circle_%d_%s_%s" % [radius, col.to_html(), soft]
 	if _cache.has(key):
@@ -128,26 +151,34 @@ func circle(radius: int, col: Color, soft: bool = true) -> Texture2D:
 	_cache[key] = t
 	return t
 
-## Prozedurales Portrait (64x64) aus Parametern (siehe Db.MERCS)
+## Portrait: a real avatar image (assets/textures/portraits/<id>.png) when
+## present, otherwise procedural 64x64 from parameters (see Db.MERCS).
 func portrait(p: Dictionary) -> Texture2D:
 	var key := "por_" + str(p)
 	if _cache.has(key):
 		return _cache[key]
+	if p.has("id"):
+		var path := "res://assets/textures/portraits/%s.png" % str(p["id"])
+		if ResourceLoader.exists(path):
+			var tex: Texture2D = load(path)
+			if tex != null:
+				_cache[key] = tex
+				return tex
 	var img := Image.create_empty(64, 64, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0.15, 0.17, 0.10))
-	# Hintergrund-Vignette
+	# background vignette
 	img.fill_rect(Rect2i(0, 0, 64, 3), Color(0.10, 0.11, 0.06))
 	img.fill_rect(Rect2i(0, 61, 64, 3), Color(0.10, 0.11, 0.06))
 	var skin: Color = p["skin"]
 	var hair: Color = p["hair"]
 	var cloth: Color = p["cloth"]
-	# Schultern
+	# shoulders
 	img.fill_rect(Rect2i(12, 52, 40, 12), cloth)
 	img.fill_rect(Rect2i(16, 48, 32, 6), cloth.darkened(0.15))
-	# Hals + Kopf
+	# neck + head
 	img.fill_rect(Rect2i(28, 44, 8, 6), skin.darkened(0.1))
 	_fill_circle(img, 32, 31, 15, skin)
-	# Haare
+	# hair
 	match int(p["style"]):
 		1:
 			img.fill_rect(Rect2i(19, 14, 26, 8), hair)
@@ -159,14 +190,14 @@ func portrait(p: Dictionary) -> Texture2D:
 			img.fill_rect(Rect2i(29, 7, 6, 16), hair)
 		_:
 			pass
-	# Mütze / Barett
+	# cap / beret
 	if p.get("cap") != null:
 		var capc: Color = p["cap"]
 		img.fill_rect(Rect2i(17, 11, 30, 9), capc)
 		img.fill_rect(Rect2i(15, 18, 34, 3), capc.darkened(0.25))
 		img.set_pixel(24, 15, Color(0.95, 0.85, 0.4))
 		img.set_pixel(25, 15, Color(0.95, 0.85, 0.4))
-	# Augen / Sonnenbrille
+	# eyes / sunglasses
 	if p["shades"]:
 		img.fill_rect(Rect2i(21, 27, 22, 5), Color(0.05, 0.05, 0.06))
 		img.fill_rect(Rect2i(19, 27, 2, 2), Color(0.05, 0.05, 0.06))
@@ -197,7 +228,7 @@ func _fill_circle(img: Image, cx: int, cy: int, r: int, col: Color) -> void:
 			if Vector2(x - cx, y - cy).length() <= r:
 				img.set_pixel(x, y, col)
 
-## Fallback, falls eine PNG fehlt — das Spiel läuft auch ganz ohne Assets.
+## Fallback in case a PNG is missing — the game runs entirely without assets too.
 func _procedural(n: String) -> Texture2D:
 	var img := Image.create_empty(64, 64, false, Image.FORMAT_RGBA8)
 	var rng := RandomNumberGenerator.new()
@@ -245,7 +276,7 @@ func _procedural(n: String) -> Texture2D:
 		for i in 8:
 			img.fill_rect(Rect2i(rng.randi_range(8, 48), rng.randi_range(8, 48), 6, 4), Color(0.55, 0.4, 0.22))
 	elif n.contains("_gun") or n.contains("_machine") or n.contains("_stand"):
-		# Top-Down-Figur: Körperkreis + Waffe nach rechts
+		# top-down figure: body circle + weapon pointing right
 		var body := Color.from_hsv(fmod(abs(float(hash(n))) / 1000.0, 1.0), 0.5, 0.75)
 		if not n.contains("_stand"):
 			img.fill_rect(Rect2i(34, 28, 26, 8), Color(0.2, 0.2, 0.22))

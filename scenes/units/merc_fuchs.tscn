@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[node name="MercFuchs" type="Node3D"]
+metadata/merc_id = "fuchs"
+metadata/model = "m_hoodie"
+metadata/uniform = Color(0.58, 0.56, 0.33, 1)
+metadata/weapon_model = "rifle"
+metadata/weapon_id = "flinte"

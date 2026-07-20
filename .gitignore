@@ -1,3 +1,11 @@
 .godot/
 *.tmp
 .env
+
+# Verifikations-Screenshots (werden bei Bedarf neu erzeugt: --hideout-shots,
+# --gallery-shots, --hire-shots, --boot-shots ...).
+scratch_shots/
+
+# Heruntergeladene Asset-Quellarchive. Die entpackten Modelle liegen versioniert
+# unter assets/models/ — die Archive waeren nur Ballast.
+*.zip

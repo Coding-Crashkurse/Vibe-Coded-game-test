@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[node name="MercOpa" type="Node3D"]
+metadata/merc_id = "opa"
+metadata/model = "m_farmer"
+metadata/uniform = Color(0.47, 0.48, 0.47, 1)
+metadata/weapon_model = "rifle"
+metadata/weapon_id = "svd"
