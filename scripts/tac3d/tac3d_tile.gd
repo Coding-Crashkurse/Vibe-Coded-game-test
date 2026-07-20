@@ -18,6 +18,11 @@ const FLAG_DESTRUCT := 1
 const FLAG_SPAWN := 2
 const FLAG_GOAL := 4
 const FLAG_KEEPOUT := 8   # no blocking decoration (palm tree) on this cell
+# Jungle thicket: Scenery3D raises the palm density sharply on these cells, so a
+# closed canopy grows instead of scattered single trees (world map look, §2 of
+# docs/dev/sector_geometry_f3_f4.md). Palms make their cell UNWALKABLE, so exits
+# and spawns additionally carry FLAG_KEEPOUT.
+const FLAG_JUNGLE := 16
 
 
 static func make(k: Kind, ebene: int) -> Tac3DTile:

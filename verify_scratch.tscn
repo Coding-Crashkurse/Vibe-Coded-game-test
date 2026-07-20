@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3]
-
-[ext_resource type="Script" path="res://verify_scratch.gd" id="1"]
-
-[node name="VerifyScratch" type="Control"]
-script = ExtResource("1")

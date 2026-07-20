@@ -2108,6 +2108,82 @@ func _check_screens(fails: int) -> int:
 	return fails
 
 
+# ============================================================ The Hideout stash (§3.3.5 / §4.4)
+
+## The base armory only exists behind a CLICK, so _check_screens (which merely
+## instantiates every screen) never reaches it. These assertions drive equip and
+## reload directly. That path mutates the same runtime merc dict the combat code
+## reads ("weapon"/"ammo"/"inv"/"ammo_store"), so a defect here shows up on the
+## battlefield as wrong gear rather than as a crash — silent without a test.
+func _check_stash(fails: int) -> int:
+	var was_fast := fast
+	fast = false
+	Game.new_game()
+	Game.set_difficulty("leicht")
+	Game.hire("ivan")                       # K45 plus 4x mag_45 in the pack
+	Game.base_unlocked = true               # the room only opens in base mode with this
+	goto("hideout")
+	await get_tree().process_frame
+	if current == null or not is_instance_valid(current):
+		fails = _chk_fail("STASH", fails, "T1: the hideout screen did not open")
+		fast = was_fast
+		return fails
+
+	# Game-side bookkeeping first — the UI leans on it.
+	Game.stash = []
+	Game.stash_add("flinte")
+	if Game.stash.size() != 1:
+		fails = _chk_fail("STASH", fails, "T2: stash_add did not store the item")
+	var taken := Game.stash_take(0)
+	if taken != "flinte" or Game.stash.size() != 0:
+		fails = _chk_fail("STASH", fails, "T3: stash_take gave '%s', %d left" % [taken, Game.stash.size()])
+
+	current.call("_open_stash")
+	await get_tree().process_frame
+
+	var m: Dictionary = Game.team[0]
+	var before_weapon := String(m["weapon"])
+	var before_slots := (m["inv"] as Array).size()
+
+	# EQUIP: put a shotgun in the pack, wield it, and check the old weapon takes
+	# exactly the slot the new one vacated. The pack must NOT grow — that is what
+	# keeps Db.INV_SLOTS from being exceeded.
+	(m["inv"] as Array).append("flinte")
+	current.call("_stash_equip", (m["inv"] as Array).size() - 1)
+	if String(m["weapon"]) != "flinte":
+		fails = _chk_fail("STASH", fails, "T4: equip did not wield the shotgun (weapon=%s)" % String(m["weapon"]))
+	if not (m["inv"] as Array).has(before_weapon):
+		fails = _chk_fail("STASH", fails, "T5: the previously wielded %s did not return to the pack" % before_weapon)
+	if (m["inv"] as Array).size() != before_slots + 1:
+		fails = _chk_fail("STASH", fails, "T6: pack size drifted (%d -> %d) — a swap must not create slots"
+				% [before_slots + 1, (m["inv"] as Array).size()])
+
+	# RELOAD: empty the shotgun, hand it matching shells, expect a full magazine.
+	m["ammo"] = 0
+	(m["inv"] as Array).append("mag_schrot")
+	current.call("_stash_reload", (m["inv"] as Array).size() - 1)
+	var full := int(Db.weapon("flinte")["mag"])
+	if int(m["ammo"]) != full:
+		fails = _chk_fail("STASH", fails, "T7: reload gave %d of %d rounds" % [int(m["ammo"]), full])
+	if (m["inv"] as Array).count("mag_schrot") != 0:
+		fails = _chk_fail("STASH", fails, "T8: the magazine was not consumed")
+
+	# Out-of-range indices must be survivable — the UI hands these in after a rebuild.
+	current.call("_stash_equip", 999)
+	current.call("_stash_reload", -1)
+	await get_tree().process_frame
+	if current == null or not is_instance_valid(current):
+		fails = _chk_fail("STASH", fails, "T9: an out-of-range index killed the screen")
+
+	if fails == 0:
+		print("STASH: T1-T9 base armory (equip / reload / bounds) ok")
+	if current != null and is_instance_valid(current):
+		current.queue_free()
+	current = null
+	fast = was_fast
+	return fails
+
+
 # ============================================================ §8.2 full loop (--loop)
 
 ## F4 -> west exit -> F3 -> loot -> rescue -> base -> bot battle -> end card.
@@ -2692,6 +2768,7 @@ func _smoke() -> void:
 	fails = _check_save_roundtrip(fails)
 	fails = await _check_bad_slots(fails)
 	fails = await _check_screens(fails)
+	fails = await _check_stash(fails)
 	_wipe_all_slots()
 	if fails == 0:
 		print("SMOKE OK")

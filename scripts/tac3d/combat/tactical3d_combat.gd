@@ -1075,7 +1075,11 @@ func shoot(att, def, interrupt := false) -> bool:
 		# Polish: the casing ejects (ground height of the shooter's cell, shotgun = red).
 		juice.shell_casing(muzzle, flat_dir, grid.cell_to_world(att.cell).y, bool(w["shotgun"]))
 		rig.add_trauma(Juice3D.TRAUMA_SHOT)
-		Sfx.play(String(w["snd"]), 2.5 if String(w["snd"]) == "shot_r" else (2.0 if bool(w["shotgun"]) else 1.0))
+		# Boost derived from WEAPON PROPERTIES, not from the sound key's name: the
+		# key used to be compared against "shot_r", which silently dropped the SVD
+		# to +1.0 dB the moment per-weapon sounds gave it its own key ("shot_svd").
+		# Long guns (pose "machine", not a shotgun) = rifle/sniper -> +2.5 dB.
+		Sfx.play(String(w["snd"]), 2.5 if (String(w["pose"]) == "machine" and not bool(w["shotgun"])) else (2.0 if bool(w["shotgun"]) else 1.0))
 	await dl(0.13)
 	if hit:
 		if att.is_merc:
@@ -1161,7 +1165,11 @@ func shoot_ground(att, cell: Vector3i) -> void:
 		# Polish: the casing ejects (ground height of the shooter's cell, shotgun = red).
 		juice.shell_casing(muzzle, flat_dir, grid.cell_to_world(att.cell).y, bool(w["shotgun"]))
 		rig.add_trauma(Juice3D.TRAUMA_SHOT)
-		Sfx.play(String(w["snd"]), 2.5 if String(w["snd"]) == "shot_r" else (2.0 if bool(w["shotgun"]) else 1.0))
+		# Boost derived from WEAPON PROPERTIES, not from the sound key's name: the
+		# key used to be compared against "shot_r", which silently dropped the SVD
+		# to +1.0 dB the moment per-weapon sounds gave it its own key ("shot_svd").
+		# Long guns (pose "machine", not a shotgun) = rifle/sniper -> +2.5 dB.
+		Sfx.play(String(w["snd"]), 2.5 if (String(w["pose"]) == "machine" and not bool(w["shotgun"])) else (2.0 if bool(w["shotgun"]) else 1.0))
 	await dl(0.13)
 	_refund_if_exploring(att)   # free during the approach phase (like movement)
 

@@ -14,6 +14,12 @@ License: **CC0 1.0 Universal**. No attribution required; credited here voluntari
   *Ultimate Modular Men*. Legacy defaults, still used as fallbacks and for
   enemy/boss units.
 - `weapons/rifle.glb` — *Ultimate Guns*.
+- `weapons/pistol_4.obj`, `weapons/pistol_5.obj`, `weapons/shotgun_1.obj`,
+  `weapons/shotgun_2.obj`, `weapons/sniperrifle_1.obj` — *Ultimate Gun Pack*
+  (OpenGameArt "Low Poly Guns Pack" / quaternius.com). One distinct mesh per
+  Db weapon, so P9, K45, Huntsman, Dragonmaw and SVD are told apart by
+  silhouette and not just by name (§4.1 step 4). Each `.obj` ships with its
+  `.mtl`; `Db.WEAPONS[<id>]["mesh"]` points at the `Assets3D.WEAPONS` id.
 - `props/` — *Survival Pack* (crates, barrels, chest).
 
 ## KayKit — https://kaylousberg.itch.io

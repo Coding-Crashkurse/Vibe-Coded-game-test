@@ -1058,7 +1058,11 @@ func _ensure_doll(u: Tac3DUnit) -> SubViewportContainer:
 	if look.has("model"):
 		cid = String(look["model"])
 	var wid := String(u.data.get("weapon", ""))
-	var wmodel := String(Tac3DUnit.WEAPON_MODEL.get(wid, "rifle"))
+	# Resolve the merc's OWN weapon mesh (P9 / K45 / Huntsman / Dragonmaw / SVD each
+	# have their own), falling back to the generic pistol/rifle when that weapon has
+	# no dedicated mesh. Without this the paper doll showed the generic gun while the
+	# figure in the field carried the real one.
+	var wmodel := Unit3D.weapon_mesh_for(String(Tac3DUnit.WEAPON_MODEL.get(wid, "rifle")), wid)
 	# The merc id belongs in the cache key: two mercs with the same body+weapon
 	# still have DIFFERENT uniform colours.
 	var key := uid + "|" + cid + "|" + wmodel

@@ -41,11 +41,16 @@ const MODEL_Y_OFFSET := 0.1
 # (barrel across the fist -> pistol practically invisible, user bug report).
 # pistol.obj measures ~1.82 units -> 0.0022 yields ~0.40 world units (slightly
 # oversized like the shell casings, otherwise it is sub-pixel small).
-## FALLBACK table per weapon MODEL. Since SPEC §4.1 step 3 the authoritative
-## source is `Db.WEAPONS[<weapon_id>]["attach_offset"]` (data instead of code) —
-## this constant only applies when the Db entry is missing (unknown weapon, call
-## without a weapon id, foreign code). The numbers are identical, so nothing
-## shifts. combat_hud.gd reads it as well -> stays public.
+## FALLBACK table, keyed by the two GENERIC weapon models. Since SPEC §4.1 step 3
+## every weapon carries its own mesh + fit in
+## `Db.WEAPONS[<weapon_id>]["mesh"/"attach_offset"]` (data instead of code).
+## This constant is what remains when that data does not apply: a call without a
+## weapon id, an unknown weapon, or a per-weapon .obj that is not on disk.
+## The numbers are the hard-won originals and still describe pistol.obj /
+## rifle.glb exactly. combat_hud.gd reads it as well -> stays public.
+##
+## MEMBERSHIP IS LOAD-BEARING: "is this id one of the two generic fallbacks?" is
+## answered by WEAPON_FITS.has(id) — see weapon_fit_from().
 const WEAPON_FITS := {
 	"rifle":  {"scale": 0.0035, "offset": Vector3.ZERO, "euler": Vector3(0.0, 0.0, 90.0)},
 	"pistol": {"scale": 0.0022, "offset": Vector3.ZERO, "euler": Vector3(0.0, 0.0, 90.0)},
@@ -158,7 +163,7 @@ var _mesh: Node3D                     # GLB root, prefab root OR fallback capsul
 var _anim: AnimationPlayer = null     # found recursively; null for the fallback
 var _weapon_att: BoneAttachment3D = null   # hand bone anchor; null for the fallback capsule
 var _gun: Node3D = null                    # currently mounted weapon model
-var _gun_model := ""                       # model id of the mounted weapon ("rifle"/"pistol")
+var _gun_model := ""                       # RESOLVED mesh id of the mounted weapon (weapon_mesh_for)
 var _gun_weapon := ""                      # Db weapon id of the mounted weapon ("" = unknown)
 
 var _target_yaw := 0.0                 # target facing (mesh yaw), set by face_toward
@@ -260,44 +265,70 @@ func set_cell(c: Vector3i) -> void:
 		position = grid.cell_to_world(c) + Vector3(0, MODEL_Y_OFFSET, 0)
 
 
-## PUBLIC: mounts the weapon MODEL (Assets3D id "rifle"/"pistol") in the right
-## hand. Replaces an already mounted weapon (inventory swap!). No-op for the
-## fallback capsule (no skeleton) or when exactly this model/weapon is already
-## mounted.
+## PUBLIC: mounts a weapon in the right hand. Replaces an already mounted weapon
+## (inventory swap!). No-op for the fallback capsule (no skeleton) or when
+## exactly this model/weapon is already mounted.
 ##
-## weapon_id (optional) = Db weapon id ("p9"/"svd"/...). When it is set AND
-## Db.WEAPONS has an "attach_offset" for it, the fit comes from the DATABASE
-## (SPEC §4.1 step 3). Without either, the old WEAPON_FITS table applies —
-## identical numbers, so identical looks.
+##   model_id  — GENERIC fallback model, an Assets3D id ("rifle"/"pistol").
+##   weapon_id — OPTIONAL Db weapon id ("p9"/"svd"/...). When it is set, the
+##               weapon's OWN mesh and OWN fit come from the Db (SPEC §4.1
+##               step 3) and model_id is only the safety net.
+##
+## FALLBACK LAW: the actually shown mesh is resolved by weapon_mesh_for(), which
+## returns model_id whenever the Db names no mesh or that mesh file is absent.
+## weapon_fit() is then handed the SAME resolved id, so mesh and fit can never
+## come apart — a headless checkout without any .obj shows the generic model at
+## the generic size, exactly as before.
 func equip_weapon(model_id: String, weapon_id := "") -> void:
 	if _weapon_att == null:
 		return
-	if model_id == _gun_model and weapon_id == _gun_weapon:
+	var mesh_id := weapon_mesh_for(model_id, weapon_id)
+	if mesh_id == _gun_model and weapon_id == _gun_weapon:
 		return
 	if _gun != null:
 		_gun.queue_free()
 		_gun = null
-	var fit := weapon_fit(model_id, weapon_id)
-	var gun := Assets3D.weapon(model_id)
+	var fit := weapon_fit(mesh_id, weapon_id)
+	var gun := Assets3D.weapon(mesh_id)
 	gun.scale = fit["scale"]
 	gun.position = fit["position"]
 	gun.rotation_degrees = fit["rotation"]
 	_weapon_att.add_child(gun)
 	_enable_shadows(gun)
 	_gun = gun
-	_gun_model = model_id
+	_gun_model = mesh_id
 	_gun_weapon = weapon_id
 
 
+## PUBLIC: which mesh does this weapon actually SHOW?
+## Db.WEAPONS[<id>]["mesh"] wins — but only when that id resolves to a file that
+## is really on disk. Otherwise the generic model_id stands, which is what keeps
+## a bare checkout (and every headless test) working.
+static func weapon_mesh_for(model_id: String, weapon_id: String) -> String:
+	if weapon_id == "":
+		return model_id
+	var mesh := Db.weapon_mesh(weapon_id)
+	if mesh == "" or not Assets3D.has_weapon_mesh(mesh):
+		return model_id
+	return mesh
+
+
 ## PUBLIC + STATIC: resolve the fit. `db_offset` is the (possibly empty)
-## Db.WEAPONS[<id>]["attach_offset"] entry — if it carries a "scale" it WINS
-## (data beats code, SPEC §4.1 step 3); otherwise WEAPON_FITS applies.
+## Db.WEAPONS[<id>]["attach_offset"] entry.
 ## ALWAYS returns {"position": Vector3, "rotation": Vector3, "scale": Vector3}.
 ## Deliberately PARAMETRIC instead of doing its own Db lookup: that keeps the
 ## function pure and lets the HUD (paper doll without a Unit3D instance) use
 ## exactly the same fit.
+##
+## `model_id` is the mesh that is about to be SHOWN, and it decides whether the
+## Db offset may be used at all: those numbers are measured against the weapon's
+## OWN mesh, so applying them to one of the two generic fallback meshes would
+## mis-size it (an SVD fit is calibrated on a 7.3-unit sniper — on the 2.3-unit
+## rifle.glb it would render a stub). Hence: a model_id that IS a key of
+## WEAPON_FITS is by definition a generic fallback mesh and takes the generic
+## numbers; anything else is a per-weapon mesh and takes the Db offset.
 static func weapon_fit_from(model_id: String, db_offset: Dictionary) -> Dictionary:
-	if db_offset.has("scale"):
+	if db_offset.has("scale") and not WEAPON_FITS.has(model_id):
 		return {
 			"position": _as_vec3(db_offset.get("position", Vector3.ZERO)),
 			"rotation": _as_vec3(db_offset.get("rotation", Vector3.ZERO)),
@@ -312,7 +343,8 @@ static func weapon_fit_from(model_id: String, db_offset: Dictionary) -> Dictiona
 
 
 ## Convenience: looks the Db fit up itself (the Db access deliberately lives here,
-## in a NON-static method).
+## in a NON-static method). Pass the RESOLVED mesh id (weapon_mesh_for), not the
+## generic model — see weapon_fit_from.
 func weapon_fit(model_id: String, weapon_id := "") -> Dictionary:
 	var off: Dictionary = {}
 	if weapon_id != "":
@@ -368,10 +400,17 @@ static func _meta_string(n: Node, key: String) -> String:
 ##
 ## Skipped entirely in fast mode (bot/headless) — project law: fast mode builds
 ## no visual work. See can_paint().
+##
+## The WEAPON is excluded. It hangs off the hand bone and therefore sits INSIDE
+## _mesh, so the recursion used to reach it and paint the gun in the merc's
+## uniform colour: three mercs carrying the same K45 showed a rust one, a black
+## one and a maroon one (verified in the gallery, 2026-07-20). A weapon has to
+## look like itself, not like the shirt of whoever is holding it — so the
+## attachment subtree is skipped.
 func set_uniform_color(col: Color) -> void:
 	if fast:
 		return
-	paint_uniform(_mesh, col)
+	paint_uniform(_mesh, col, _weapon_att)
 
 
 ## Is there a real rendering device to paint into?
@@ -390,21 +429,27 @@ static func can_paint() -> bool:
 
 ## PUBLIC + STATIC: the same for ANY model tree (the HUD builds its paper doll
 ## without a Unit3D instance and needs the same colouring).
-static func paint_uniform(root: Node, col: Color) -> void:
+##
+## `skip` is an optional subtree that is left alone entirely — Unit3D passes its
+## weapon attachment so the gun keeps its own materials. Callers that mount the
+## weapon only AFTER painting (combat_hud's paper doll) can omit it.
+static func paint_uniform(root: Node, col: Color, skip: Node = null) -> void:
 	if root == null or col.a <= 0.0:
 		return
 	if not can_paint():
 		return
-	if _paint_uniform(root, col, false) == 0:
+	if _paint_uniform(root, col, false, skip) == 0:
 		# No known clothing material (fallback capsule/foreign GLB): only blend
 		# subtly instead of bluntly repainting everything.
-		_paint_uniform(root, col, true)
+		_paint_uniform(root, col, true, skip)
 
 
 ## Recursive painter. subtle=false: clothing only, the colour is SET.
 ## subtle=true: all surfaces, the colour is only BLENDED IN. Returns the number
-## of repainted surfaces.
-static func _paint_uniform(n: Node, col: Color, subtle: bool) -> int:
+## of repainted surfaces. `skip` prunes one subtree (see paint_uniform).
+static func _paint_uniform(n: Node, col: Color, subtle: bool, skip: Node = null) -> int:
+	if n != null and n == skip:
+		return 0
 	var hits := 0
 	if n is MeshInstance3D:
 		var mi := n as MeshInstance3D
@@ -450,7 +495,7 @@ static func _paint_uniform(n: Node, col: Color, subtle: bool) -> int:
 				mi.set_surface_override_material(i, dup)
 				hits += 1
 	for child in n.get_children():
-		hits += _paint_uniform(child, col, subtle)
+		hits += _paint_uniform(child, col, subtle, skip)
 	return hits
 
 

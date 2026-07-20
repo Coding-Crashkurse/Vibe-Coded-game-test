@@ -85,9 +85,21 @@ Wahrheit (90 Zeilen, 49 vorhanden / 41 `pending`). `sfx.gd` spielt Dateien ab (S
   Continue/Load springen per `Hideout.enter_base(router)` in die Basis, sobald `base_unlocked` —
   dieser Weg hing nie am Flag.
 
+- **Je Waffe ein eigenes Mesh und ein eigener Schuss-Sound** (P9/K45/Huntsman/Dragonmaw/SVD).
+  `Db.WEAPONS[<id>]` trägt `"mesh"` (→ `Assets3D.WEAPONS`) + `"attach_offset"` + `"snd"`.
+  Fehlt ein Mesh, greift der generische Pistolen-/Gewehr-Pfad (empirisch mit entfernten .obj geprüft).
+  **Schusslautstärke hängt an Waffen-EIGENSCHAFTEN, nicht am Soundkey-Namen** — der alte Vergleich
+  `snd == "shot_r"` ließ den SVD still auf +1,0 dB fallen, sobald er einen eigenen Key bekam.
+
 Bewusst offen:
-- `crouch_idle`/echtes `reload` fehlen im Quaternius-Rig (Haltung per Mesh-Squash gefakt) — echte Lösung
-  wäre die Universal Animation Library + Retargeting via BoneMap/SkeletonProfileHumanoid.
+- `crouch_idle`/echtes `reload` fehlen im Rig. **Retargeting wurde ernsthaft versucht und ist gescheitert**
+  (2026-07-20, Screenshot-belegt, sauber zurückgerollt): Namen lassen sich zwar 51/51 auf
+  SkeletonProfileHumanoid abbilden, aber die RUHE-POSEN sind unterschiedliche Posen-*Formen*
+  (Rig hängende Arme vs. Bibliothek T-Pose, 95–125° durch die Armkette, links≠rechts).
+  `fix_silhouette` überbrückt das NICHT. Ohne gemeinsame Referenzpose lässt sich Achsenkonvention nicht
+  von Posendifferenz trennen, und Ausrichtung über kürzeste Drehung verwirft den Bone-Roll → verdrehte
+  Unterarme, zerrissene Haut. Nächster Schritt wäre Backen in Blender, nicht Skripten.
+  Nebenbefund: Retargeting benennt `Wrist.R` → `RightHand` um, d. h. alle Waffen wären weg.
 - Stash bewegt nur Item-Ids (kein Ausrüsten/Nachladen aus der Basis heraus).
 - Laptop im Hideout führt zum Anheuern-Screen, aber der Rückweg in die Basis fehlt.
 

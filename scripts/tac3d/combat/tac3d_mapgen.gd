@@ -122,10 +122,29 @@ const COVER_CELLS := [
 # NO creek, NO boardwalk, NO village, NO cellar, NO boss.
 # The squad lands in the SOUTH and moves WEST (x=0) on to F3.
 
-# Landing on the south beach (z>=64 carries the sand band in Scenery3D).
+# COASTLINE (world map art): the ocean bay bites in from the EAST and curls into the
+# SOUTH-EAST corner. A cell is sea when `x > coast_x(z)`; sea cells are simply ABSENT
+# from the grid — see _carve_coast_east() for why that beats a water tile kind.
+# Control points [z, coast_x], linearly interpolated in between. ~62 % land.
+const F4_COAST := [
+	[0, 54], [8, 56], [16, 58], [24, 60], [32, 61], [40, 60], [48, 57],
+	[54, 53], [58, 49], [62, 44], [66, 38], [70, 30], [71, 27],
+]
+
+# Jungle thickets (FLAG_JUNGLE -> dense palms in Scenery3D). {x0, z0, w, h}.
+# Both rects start at x>=3: column x=0..2 must stay open so the west exit can
+# never grow shut (palms make cells unwalkable).
+const F4_JUNGLE_RECTS := [
+	{"x0": 3, "z0": 0, "w": 24, "h": 31},    # north-west canopy mass
+	{"x0": 8, "z0": 44, "w": 13, "h": 13},   # thicket that breaks the sight line LZ -> exit
+]
+
+# Landing on the south beach. coast_x(63) ~ 43 / coast_x(64) ~ 41, so these four cells
+# sit roughly 7 tiles inland of the water with the sea at the squad's back — and ~34
+# tiles east of the west exit, which makes the march to F3 a real move across the map.
 const F4_MERC_SPAWNS := [
-	Vector3i(46, 0, 66), Vector3i(47, 0, 66),
-	Vector3i(46, 0, 67), Vector3i(47, 0, 67),
+	Vector3i(34, 0, 63), Vector3i(35, 0, 63),
+	Vector3i(34, 0, 64), Vector3i(35, 0, 64),
 ]
 # 4 Helix patrols (spec §3.3.2: 3-5), spread loosely along the diagonal from the
 # drop point to the west exit, so the way to F3 offers contact without crushing the
@@ -418,6 +437,71 @@ static func _scatter_cover_cells(g: Grid3D, cells: Array, loot_out: Array) -> vo
 		t.flags = t.flags | Tac3DTile.FLAG_DESTRUCT
 		g.set_tile(c, t)
 		loot_out.append(c)
+
+
+# ------------------------------------------------------------------ coast + jungle
+
+## Linear interpolation over sorted [key, value] control points. Clamps at both ends.
+static func _interp(points: Array, key: int) -> int:
+	var first: Array = points[0]
+	if key <= int(first[0]):
+		return int(first[1])
+	for i in range(1, points.size()):
+		var a: Array = points[i - 1]
+		var b: Array = points[i]
+		if key <= int(b[0]):
+			var span := int(b[0]) - int(a[0])
+			if span <= 0:
+				return int(b[1])
+			var t := float(key - int(a[0])) / float(span)
+			return int(round(lerp(float(a[1]), float(b[1]), t)))
+	var last: Array = points[points.size() - 1]
+	return int(last[1])
+
+
+## Carve the ocean off the EAST side: every cell with `x > coast_x(z)` is REMOVED
+## from the grid.
+##
+## Why absent cells and not a water tile: Grid3D.is_walkable() already returns false
+## for a missing key, GroundView3D draws nothing there, and Scenery3D._build_ocean
+## lays a large water plane under the whole map — so the island edge visibly sinks
+## into the sea for free. A WATER_DEEP tile would instead be Move.SWIM-walkable
+## (6 AP), letting a merc paddle out onto the open ocean.
+##
+## Careful: bounds_world() only spans the remaining cells, so the camera clamp
+## follows the land. size_x/size_z stay 72 (Grid3D never shrinks them), which keeps
+## Scenery3D's EDGE_INSET check meaningful.
+static func _carve_coast_east(g: Grid3D, points: Array) -> void:
+	for z in range(SIZE):
+		var cx := _interp(points, z)
+		for x in range(cx + 1, SIZE):
+			g.tiles.erase(Vector3i(x, 0, z))
+
+
+## Carve the ocean off the SOUTH side: every cell with `z > coast_z(x)` is removed.
+static func _carve_coast_south(g: Grid3D, points: Array) -> void:
+	for x in range(SIZE):
+		var cz := _interp(points, x)
+		for z in range(cz + 1, SIZE):
+			g.tiles.erase(Vector3i(x, 0, z))
+
+
+## Mark rectangles as jungle (FLAG_JUNGLE). Only touches cells that still exist —
+## a rect may overhang the coast, which is fine and keeps the tables readable.
+static func _mark_jungle(g: Grid3D, rects: Array) -> void:
+	for r in rects:
+		var rd: Dictionary = r
+		for dz in range(int(rd["h"])):
+			for dx in range(int(rd["w"])):
+				var c := Vector3i(int(rd["x0"]) + dx, 0, int(rd["z0"]) + dz)
+				var t: Tac3DTile = g.get_tile(c)
+				# Never thicket a cell that must stay clear (spawns, exits) or that
+				# is not plain ground (walls, cover tiles, building floors).
+				if t == null or t.kind != Tac3DTile.Kind.GROUND:
+					continue
+				if (t.flags & Tac3DTile.FLAG_KEEPOUT) != 0 or t.cover > 0.0:
+					continue
+				t.flags = t.flags | Tac3DTile.FLAG_JUNGLE
 
 
 ## F4 rock/ruin barrier: pure WALL area (no FLOOR interior, no door). Scenery3D draws

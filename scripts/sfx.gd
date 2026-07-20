@@ -269,8 +269,19 @@ func toggle_mute() -> void:
 
 func _build_streams() -> void:
 	# Baked effects (preferred) — key -> file in assets/sfx/fx
+	#
+	# Gunshots come in two layers. shot_p/shot_s/shot_r are the LEGACY class
+	# sounds (pistol/shotgun/rifle) and stay registered as fallbacks for any
+	# caller that still asks for them. shot_p9..shot_svd are the per-weapon
+	# shots Db.WEAPONS[<id>]["snd"] now points at, so every weapon sounds like
+	# itself. A missing file is not an error: _build_synth_fallbacks() fills the
+	# key with the synthesised shot of its class, and Sfx.play() ignores keys it
+	# does not know at all.
 	var filemap := {
 		"shot_p": "shot_pistol", "shot_s": "shot_shotgun", "shot_r": "shot_rifle",
+		"shot_p9": "shot_p9", "shot_k45": "shot_k45",
+		"shot_huntsman": "shot_huntsman", "shot_dragonmaw": "shot_dragonmaw",
+		"shot_svd": "shot_svd",
 		"reload": "reload_mag",
 		"explosion": "explosion", "hit": "hit_body", "miss": "miss_whiz",
 		"death_m": "death_male", "death_f": "death_female", "throw": "throw_grenade",
@@ -324,6 +335,13 @@ func _build_synth_fallbacks() -> void:
 	_fb("shot_p", _wav(_gen_shot_p(rng)))
 	_fb("shot_s", _wav(_gen_shot_s(rng)))
 	_fb("shot_r", _wav(_gen_shot_r(rng)))
+	# Per-weapon shots degrade to the synthesised shot of their CLASS, so a
+	# missing mp3 still fires a plausible bang instead of silence.
+	for pistol_key in ["shot_p9", "shot_k45"]:
+		_fb(pistol_key, _wav(_gen_shot_p(rng)))
+	for shotgun_key in ["shot_huntsman", "shot_dragonmaw"]:
+		_fb(shotgun_key, _wav(_gen_shot_s(rng)))
+	_fb("shot_svd", _wav(_gen_shot_r(rng)))
 	_fb("explosion", _wav(_gen_explosion(rng)))
 	_fb("throw", _wav(_gen_throw(rng)))
 	_fb("hit", _wav(_gen_hit(rng)))

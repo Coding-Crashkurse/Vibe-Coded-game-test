@@ -51,9 +51,23 @@ const PROPS := {
 	"crates_stacked": "res://assets/models/props/crates_stacked.glb",
 	"chest": "res://assets/models/props/chest.glb",
 }
+## Weapon models. The first two are the GENERIC fallbacks — every weapon that has
+## no own mesh (or whose own mesh file is missing) still shows one of these, and
+## Unit3D.WEAPON_FITS holds the matching fit for exactly these two ids.
+##
+## Below them: one mesh per Db weapon, so the five weapons are told apart by
+## SILHOUETTE and not just by name (§4.1 step 4). Picked from the Quaternius
+## Ultimate Gun Pack for maximum contrast at ortho zoom — slim vs. boxy pistol,
+## wooden vs. all-black shotgun, and a scoped sniper that is by far the longest.
+## Db.WEAPONS[<id>]["mesh"] points here.
 const WEAPONS := {
 	"pistol": "res://assets/models/weapons/pistol.obj",
 	"rifle": "res://assets/models/weapons/rifle.glb",
+	"pistol_9mm": "res://assets/models/weapons/pistol_5.obj",
+	"pistol_45": "res://assets/models/weapons/pistol_4.obj",
+	"shotgun_pump": "res://assets/models/weapons/shotgun_2.obj",
+	"shotgun_combat": "res://assets/models/weapons/shotgun_1.obj",
+	"sniper_scoped": "res://assets/models/weapons/sniperrifle_1.obj",
 }
 const WATER_SHADER := "res://scripts/shaders/water_compat.gdshader"
 
@@ -80,6 +94,16 @@ func prop(id: String) -> Node3D:
 ## Instantiated weapon mesh OR fallback box (small, dark).
 func weapon(id: String) -> Node3D:
 	return _instance(String(WEAPONS.get(id, "")), _fallback_weapon)
+
+
+## Does this weapon model id resolve to a file that is really there?
+## FALLBACK LAW: the per-weapon meshes are optional. Unit3D asks this BEFORE it
+## applies a per-weapon fit, so a missing .obj degrades to the generic
+## pistol/rifle model WITH its generic fit — instead of stretching a fit that was
+## measured on a different mesh over the fallback (stub or giant).
+func has_weapon_mesh(id: String) -> bool:
+	var path := String(WEAPONS.get(id, ""))
+	return path != "" and ResourceLoader.exists(path)
 
 
 ## SPEC §4.1/§7.2: the prefab of ONE merc — "res://scenes/units/merc_<id>.tscn".

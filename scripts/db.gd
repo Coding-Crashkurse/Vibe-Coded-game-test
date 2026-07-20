@@ -13,43 +13,81 @@ const TILE := 64
 #
 # SPEC §4.1 step 3: "attach_offset" is the DATA-DRIVEN fit of the weapon mesh
 # inside the Wrist.R bone space of the Quaternius CharacterArmature rig.
-#   position — Vector3, local offset inside the bone (currently always ZERO)
+#   position — Vector3, local offset inside the bone
 #   rotation — Vector3, euler degrees (Z=+90 points the barrel along the arm)
 #   scale    — float, UNIFORM scale (the bone has 100x world scale, so the
 #              values are deliberately tiny; see Unit3D.WEAPON_FITS comment)
-# The numbers are EXACTLY the ones previously hardcoded in Unit3D.WEAPON_FITS
-# (pistols 0.0022, long guns 0.0035) — nothing shifts visually. Unit3D reads
-# this table and falls back to its own const table if the field is missing.
+# Unit3D reads this table; when the field is missing it falls back to its own
+# const table.
+#
+# "mesh" is the Assets3D.WEAPONS id of the model this weapon SHOWS. Every one of
+# the five weapons now owns a distinct silhouette (JA2 recognizability, §4.1
+# step 4) instead of the old two-way pistol/rifle split:
+#   p9 slim 9mm · k45 heavy .45 · Huntsman long wooden pump · Dragonmaw short
+#   black combat shotgun · SVD scoped sniper (by far the longest).
+# ATTACH_OFFSET AND MESH BELONG TOGETHER: scale/rotation below are measured
+# AGAINST THAT MESH. If the mesh file is missing, Unit3D falls back to the
+# generic pistol/rifle model AND to the generic WEAPON_FITS numbers — never to
+# this offset on a foreign mesh (which would show a stub or a giant).
+#
+# The scale is derived, not guessed: world length = obj_length * scale * 100
+# (the bone's 100x). The target lengths against the 1.85-unit merc are
+#   p9 0.38 · k45 0.44 · Dragonmaw 0.78 · Huntsman 1.00 · SVD 1.20
+# — a deliberate size ladder, so weapon class is readable from the silhouette
+# alone at ortho zoom. The two shotguns are pulled APART on purpose (0.78 vs
+# 1.00): their meshes are only 10% apart in length and the pack's near-black
+# materials hide the wood-vs-steel difference, so without the size gap the
+# Huntsman and the Dragonmaw read as the same gun at tactical zoom.
+#
+# "position" corrects meshes whose ORIGIN is not at the grip. The bone applies
+# rotation BEFORE translation, and Z=+90 maps mesh +X -> bone +Y and mesh +Y ->
+# bone -X; so for a mesh whose grip sits at mesh (0, gy) the correction is
+# position.x = +gy * scale. Measured against pistol.obj, whose fit is the
+# verified reference: its origin sits 0.123 below the front of the slide.
+#   pistol_5 sits 0.055 below -> grip is 0.068 LOWER  -> x = -0.068 * scale
+#   pistol_4 sits 0.416 below (its origin is buried in the extended magazine)
+#            -> grip is 0.293 HIGHER -> x = +0.293 * scale. Without this the
+#            K45 juts sideways out of the fist instead of sitting in it.
+# The three long guns already carry their origin at the wrist of the stock, so
+# they need no correction.
+#
+# "snd" is the per-weapon gunshot in assets/sfx/fx. The legacy keys
+# shot_p/shot_s/shot_r still exist in Sfx as fallbacks (see sfx.gd).
 const WEAPONS := {
 	"p9": {
 		"name": "P9 9mm Pistol", "short": "P9", "cal": "9mm",
 		"dmg": 24, "var": 6, "range": 10, "ap": 12, "mag": 15, "reload": 6,
-		"acc": 5, "pose": "gun", "snd": "shot_p", "shotgun": false, "aim_max": 2,
-		"attach_offset": {"position": Vector3.ZERO, "rotation": Vector3(0.0, 0.0, 90.0), "scale": 0.0022},
+		"acc": 5, "pose": "gun", "snd": "shot_p9", "shotgun": false, "aim_max": 2,
+		"mesh": "pistol_9mm",   # pistol_5.obj — slim service pistol, 1.819 long
+		"attach_offset": {"position": Vector3(-0.00014, 0.0, 0.0), "rotation": Vector3(0.0, 0.0, 90.0), "scale": 0.00209},
 	},
 	"k45": {
 		"name": "K45 .45 Pistol", "short": "K45", "cal": "45",
 		"dmg": 30, "var": 7, "range": 8, "ap": 14, "mag": 7, "reload": 6,
-		"acc": 0, "pose": "gun", "snd": "shot_p", "shotgun": false, "aim_max": 2,
-		"attach_offset": {"position": Vector3.ZERO, "rotation": Vector3(0.0, 0.0, 90.0), "scale": 0.0022},
+		"acc": 0, "pose": "gun", "snd": "shot_k45", "shotgun": false, "aim_max": 2,
+		"mesh": "pistol_45",    # pistol_4.obj — taller, boxier frame, 1.976 long
+		"attach_offset": {"position": Vector3(0.00065, 0.0, 0.0), "rotation": Vector3(0.0, 0.0, 90.0), "scale": 0.00223},
 	},
 	"flinte": {
 		"name": "\"Huntsman\" Shotgun", "short": "Huntsman", "cal": "schrot",
 		"dmg": 40, "var": 10, "range": 6, "ap": 15, "mag": 6, "reload": 7,
-		"acc": 0, "pose": "machine", "snd": "shot_s", "shotgun": true, "aim_max": 1,
-		"attach_offset": {"position": Vector3.ZERO, "rotation": Vector3(0.0, 0.0, 90.0), "scale": 0.0035},
+		"acc": 0, "pose": "machine", "snd": "shot_huntsman", "shotgun": true, "aim_max": 1,
+		"mesh": "shotgun_pump",   # shotgun_2.obj — WOODEN stock/forend, 5.785 long
+		"attach_offset": {"position": Vector3.ZERO, "rotation": Vector3(0.0, 0.0, 90.0), "scale": 0.00173},
 	},
 	"drachenmaul": {
 		"name": "\"Dragonmaw\" Shotgun", "short": "Dragonmaw", "cal": "schrot",
 		"dmg": 48, "var": 8, "range": 7, "ap": 15, "mag": 8, "reload": 7,
-		"acc": 5, "pose": "machine", "snd": "shot_s", "shotgun": true, "aim_max": 2,
-		"attach_offset": {"position": Vector3.ZERO, "rotation": Vector3(0.0, 0.0, 90.0), "scale": 0.0035},
+		"acc": 5, "pose": "machine", "snd": "shot_dragonmaw", "shotgun": true, "aim_max": 2,
+		"mesh": "shotgun_combat", # shotgun_1.obj — all BLACK, shorter, 5.215 long
+		"attach_offset": {"position": Vector3.ZERO, "rotation": Vector3(0.0, 0.0, 90.0), "scale": 0.00150},
 	},
 	"svd": {
 		"name": "SVD Sniper Rifle", "short": "SVD", "cal": "762",
 		"dmg": 46, "var": 8, "range": 15, "ap": 15, "mag": 10, "reload": 7,
-		"acc": 12, "pose": "machine", "snd": "shot_r", "shotgun": false, "aim_max": 3,
-		"attach_offset": {"position": Vector3.ZERO, "rotation": Vector3(0.0, 0.0, 90.0), "scale": 0.0035},
+		"acc": 12, "pose": "machine", "snd": "shot_svd", "shotgun": false, "aim_max": 3,
+		"mesh": "sniper_scoped",  # sniperrifle_1.obj — SCOPE on top, 7.295 long
+		"attach_offset": {"position": Vector3.ZERO, "rotation": Vector3(0.0, 0.0, 90.0), "scale": 0.00164},
 	},
 }
 
@@ -441,12 +479,24 @@ static func merc_look(id: String) -> Dictionary:
 ## SPEC §4.1 step 3 — weapon fit inside the Wrist.R bone by WEAPON id.
 ## Returns {} when the id is unknown or carries no attach_offset; the caller
 ## (Unit3D) then uses its own hardcoded fallback table.
+##
+## The numbers are measured against weapon_mesh(id) — see the WEAPONS comment.
+## A caller showing a DIFFERENT mesh must not apply them; Unit3D.weapon_fit_from
+## enforces that.
 static func weapon_attach(id: String) -> Dictionary:
 	var w: Dictionary = WEAPONS.get(id, {})
 	if not w.has("attach_offset"):
 		return {}
 	var off: Dictionary = w["attach_offset"]
 	return off
+
+
+## Assets3D.WEAPONS id of the model this weapon SHOWS ("" = no own mesh, the
+## caller keeps the generic pistol/rifle). Unknown ids yield "" as well, so old
+## save games and foreign code simply behave as before.
+static func weapon_mesh(id: String) -> String:
+	var w: Dictionary = WEAPONS.get(id, {})
+	return String(w.get("mesh", ""))
 
 # Runtime dict for Tobias Rook (mirror of Game._runtime, but without hire/budget),
 # so the orchestrator and the test get the same dict.
